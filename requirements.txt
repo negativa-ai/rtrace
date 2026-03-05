@@ -1,0 +1,9 @@
+angr==9.2.102
+pyelftools==0.32
+pybind11==2.13.6
+capstone==5.0.0.post1
+numpy==2.0.2
+pandas==2.3.0
+pyghidra==2.2.0
+requests
+pygraphviz
