@@ -1,0 +1,41 @@
+[build-system]
+requires = ["setuptools>=64", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "rtrace"
+version = "0.1.0"
+description = "A high-accuracy library function call tracer."
+readme = "README.md"
+requires-python = ">=3.9"
+
+# Light edition (mode 1) runtime dependencies available from PyPI.
+#
+# Two dependencies are intentionally NOT listed here because they are not on PyPI
+# and are provided by the bundle build (see DISTRIBUTION.md):
+#   * srutils  -- the `sr-utils` git submodule, pip-installed from source.
+#   * nucleus  -- a native module built from the `nucleus` submodule.
+# The native tracer (DynamoRIO + librtrace.so) and FunSeeker (.NET) are likewise
+# bundled, not Python packages.
+dependencies = [
+    "pyelftools==0.32",
+    "pandas==2.3.0",
+]
+
+[project.optional-dependencies]
+# Heavy edition (modes 0 + 1) adds the mode-0 prototype/CFG analysis stack.
+heavy = [
+    "angr==9.2.102",
+    "capstone==5.0.0.post1",
+    "networkx",
+]
+
+[project.scripts]
+rtrace = "rtrace.main:main"
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["rtrace*"]

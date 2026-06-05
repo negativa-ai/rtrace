@@ -1,10 +1,11 @@
-import nucleus
 from srutils import shell_get_stdout_retcode
-from utils import is_func_symbol
+
+from . import paths
+from .utils import is_func_symbol
 
 
 def boundary_detection_funseeker(so_path):
-    detect_cmd = f"/home/ubuntu/repos/rtrace/submodules/FunSeeker/src/FunSeeker/bin/Release/net6.0/FunSeeker {so_path}"
+    detect_cmd = f"{paths.funseeker_bin()} {so_path}"
     output, retcode = shell_get_stdout_retcode(detect_cmd)
     assert retcode == 0, f"FunSeeker failed with code {retcode}"
     checked_addrs = set()
@@ -50,6 +51,9 @@ def boundary_detection_linear(elffile):
 
 
 def boundary_detection_nucleus(so_path):
+    # nucleus is a native module; import lazily so callers that never reach the
+    # nucleus path do not require it at import time.
+    import nucleus
     context = nucleus.load(so_path, binary_base=0x0)
     entry_addrs = []
     for function in context.cfg.functions:

@@ -1,18 +1,15 @@
-#!/home/ubuntu/miniconda3/envs/rtrace/bin/python
 import argparse
 import json
 import os
 import queue
 
-import networkx as nx
-from function_call import BlockInfo, CallLogProcessor
-from library import Instruction
-from process import Module, ProcessMemory
-
-from networkx.drawing.nx_agraph import write_dot
+from . import paths
+from .function_call import BlockInfo, CallLogProcessor
+from .library import Instruction
+from .process import Module, ProcessMemory
 
 
-FUNCTION_INFO_DIR = "/home/ubuntu/repos/rtrace/.cache/"
+FUNCTION_INFO_DIR = str(paths.cache_dir())
 
 
 class Node(object):
@@ -174,6 +171,10 @@ def create_cfg_partial(branch_taken, process_memory, thread_id, so_name):
     It now only used for liblzma analysis.
     It will generate a dot file which can be visualized using Graphviz `dot -Tpdf graph.dot -o graph.pdf`
     """
+    # networkx is a heavy-edition dependency, only reached by this function.
+    import networkx as nx
+    from networkx.drawing.nx_agraph import write_dot
+
     def get_node_func(node):
         module = process_memory.get_module_at_address(node.address+node.base)
         func = module.get_function_at_address(node.address+node.base)
