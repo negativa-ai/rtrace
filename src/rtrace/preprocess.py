@@ -1,7 +1,6 @@
-#!/home/ubuntu/miniconda3/envs/rtrace/bin/python
 import argparse
 
-from library import Library
+from .library import Library
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -19,4 +18,4 @@ if __name__ == "__main__":
     mode = args.mode
 
     Library(so_path, analyze_function_prototypes=(
-        mode == {mode}), func_info_dir=output)
+        mode == 0), func_info_dir=output)

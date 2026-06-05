@@ -1,0 +1,84 @@
+name: build-bundles
+
+# Builds the light and heavy RTrace bundles (Phase 2/3 of DISTRIBUTION.md).
+#
+# Build base is the ubuntu:20.04 container => glibc 2.31, so the bundles run on
+# any distro with glibc >= 2.31 (Ubuntu 20.04+, Debian 11+, RHEL 9+). Bump the
+# container only if you intentionally raise that floor.
+#
+# All submodules are public and cloned over https, so no secrets are required.
+
+on:
+  workflow_dispatch:
+  push:
+    tags: ["v*"]
+
+env:
+  # Pinned relocatable interpreter (astral-sh/python-build-standalone, install_only
+  # = relocatable). Verify/update this pin when bumping the bundled Python.
+  PYTHON_BUILD_STANDALONE_URL: "https://github.com/astral-sh/python-build-standalone/releases/download/20250106/cpython-3.11.11+20250106-x86_64-unknown-linux-gnu-install_only.tar.gz"
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    container:
+      image: ubuntu:20.04
+    strategy:
+      fail-fast: false
+      matrix:
+        edition: [light, heavy]
+    env:
+      DEBIAN_FRONTEND: noninteractive
+    steps:
+      - name: Install build dependencies
+        run: |
+          set -eux
+          apt-get update
+          apt-get install -y --no-install-recommends \
+            git curl ca-certificates sudo gnupg \
+            cmake build-essential g++-multilib \
+            python3 python3-dev \
+            zlib1g-dev libunwind-dev libsnappy-dev liblz4-dev libxxhash-dev
+          update-ca-certificates
+
+      - name: Install .NET SDK 6.0 (for FunSeeker)
+        run: |
+          set -eux
+          curl -fsSL https://packages.microsoft.com/config/ubuntu/20.04/packages-microsoft-prod.deb -o /tmp/ms.deb
+          dpkg -i /tmp/ms.deb && rm /tmp/ms.deb
+          apt-get update
+          apt-get install -y --no-install-recommends apt-transport-https dotnet-sdk-6.0
+
+      - name: Checkout (with submodules)
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Build native artifacts
+        run: |
+          set -eux
+          # 'sudo' is a no-op shim under the root container but build-native.sh calls it.
+          packaging/build-native.sh --prefix "$GITHUB_WORKSPACE/staging/rtrace"
+
+      - name: Assemble ${{ matrix.edition }} bundle
+        run: |
+          set -eux
+          packaging/build-bundle.sh \
+            --prefix "$GITHUB_WORKSPACE/staging/rtrace" \
+            --edition "${{ matrix.edition }}" \
+            --python-url "$PYTHON_BUILD_STANDALONE_URL"
+
+      - name: Package tarball + checksum
+        run: |
+          set -eux
+          OUT="rtrace-${{ matrix.edition }}-linux-x64.tar.gz"
+          tar -C "$GITHUB_WORKSPACE/staging" -czf "$OUT" rtrace
+          sha256sum "$OUT" > "$OUT.sha256"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: rtrace-${{ matrix.edition }}-linux-x64
+          path: |
+            rtrace-${{ matrix.edition }}-linux-x64.tar.gz
+            rtrace-${{ matrix.edition }}-linux-x64.tar.gz.sha256

@@ -2,14 +2,28 @@ import os
 import struct
 import json
 
-import angr
 from elftools.elf.elffile import ELFFile, SymbolTableSection
-from capstone import *
-from capstone.x86_const import X86_INS_ENDBR64, X86_INS_ENDBR32, X86_INS_RET, X86_INS_NOP, X86_INS_CALL, X86_OP_MEM, X86_OP_REG
 
-from disassembler import disassemble_data
-from boundary_detection import boundary_detection_funseeker, boundary_detection_linear, boundary_detection_nucleus
-from utils import is_func_symbol
+from . import paths
+
+# capstone is a heavy-edition (mode 0) dependency. It is only referenced by the
+# Instruction class methods, which run exclusively in mode 0, so guard the import
+# to let the light edition load this module without capstone installed.
+try:
+    from capstone import *
+    from capstone.x86_const import (
+        X86_INS_ENDBR64, X86_INS_ENDBR32, X86_INS_RET, X86_INS_NOP,
+        X86_INS_CALL, X86_OP_MEM, X86_OP_REG,
+    )
+except ImportError:
+    pass
+
+from .disassembler import disassemble_data
+from .boundary_detection import (
+    boundary_detection_funseeker, boundary_detection_linear,
+    boundary_detection_nucleus,
+)
+from .utils import is_func_symbol
 
 
 class Instruction(object):
@@ -97,7 +111,9 @@ class Function(object):
 class Library(object):
     INIT_FINI_SEC_NAMES = ['.init_array', '.fini_array']
 
-    def __init__(self, so_path, analyze_function_prototypes=False, func_info_dir="/home/ubuntu/repos/rtrace/experiments/cache/", boundary_detection_method=None, debug_sym_file=None):
+    def __init__(self, so_path, analyze_function_prototypes=False, func_info_dir=None, boundary_detection_method=None, debug_sym_file=None):
+        if func_info_dir is None:
+            func_info_dir = str(paths.cache_dir())
         self.so_path = so_path
         self._elffile = ELFFile(open(so_path, 'rb'))
         self._instructions = []
@@ -247,6 +263,8 @@ class Library(object):
             f.name = func_start_to_name[start][0]
 
     def _set_function_prototype(self):
+        # angr is a heavy-edition (mode 0) dependency; import lazily.
+        import angr
         print(f"Analyzing function prototypes in {self.so_path}")
         project = angr.Project(self.so_path, auto_load_libs=False)
         base_addr = project.loader.main_object.min_addr

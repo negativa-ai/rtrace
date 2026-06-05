@@ -2,7 +2,7 @@ import json
 
 import pandas as pd
 
-from process import ProcessMemory
+from .process import ProcessMemory
 
 
 class Call(object):

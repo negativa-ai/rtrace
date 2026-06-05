@@ -1,15 +1,15 @@
 [submodule "submodules/dynamorio"]
 	path = submodules/dynamorio
-	url = git@github.com:jzh18/dynamorio.git
+	url = https://github.com/jzh18/dynamorio.git
 [submodule "submodules/nucleus"]
 	path = submodules/nucleus
-	url = git@github.com:jzh18/nucleus.git
+	url = https://github.com/jzh18/nucleus.git
 [submodule "submodules/capstone"]
 	path = submodules/capstone
 	url = https://github.com/capstone-engine/capstone.git
 [submodule "submodules/sr-utils"]
 	path = submodules/sr-utils
-	url = git@github.com:jzh18/sr-utils.git
+	url = https://github.com/jzh18/sr-utils.git
 [submodule "submodules/FunSeeker"]
 	path = submodules/FunSeeker
-	url = git@github.com:jzh18/FunSeeker.git
+	url = https://github.com/jzh18/FunSeeker.git

@@ -1,5 +1,5 @@
 import os
-from library import Library
+from .library import Library
 
 
 class Module(object):
