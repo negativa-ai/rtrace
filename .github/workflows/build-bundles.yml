@@ -2,9 +2,11 @@ name: build-bundles
 
 # Builds the light and heavy RTrace bundles (Phase 2/3 of DISTRIBUTION.md).
 #
-# Build base is the ubuntu:20.04 container => glibc 2.31, so the bundles run on
-# any distro with glibc >= 2.31 (Ubuntu 20.04+, Debian 11+, RHEL 9+). Bump the
-# container only if you intentionally raise that floor.
+# Build base is the ubuntu:24.04 container, matching _docker/Dockerfile (the
+# validated dev environment). That means glibc 2.39, so the bundles require
+# glibc >= 2.39 on the target (Ubuntu 24.04+, Debian 13+, Fedora 40+). To widen
+# portability later, build on an older base -- but keep the dependency set in
+# sync with the Dockerfile.
 #
 # All submodules are public and cloned over https, so no secrets are required.
 
@@ -22,7 +24,7 @@ jobs:
   build:
     runs-on: ubuntu-latest
     container:
-      image: ubuntu:20.04
+      image: ubuntu:24.04
     strategy:
       fail-fast: false
       matrix:
@@ -38,7 +40,8 @@ jobs:
             git curl ca-certificates sudo gnupg \
             cmake build-essential g++-multilib \
             python3 python3-dev \
-            zlib1g-dev libunwind-dev libsnappy-dev liblz4-dev libxxhash-dev
+            zlib1g-dev libunwind-dev libsnappy-dev liblz4-dev libxxhash-dev \
+            binutils-dev binutils-multiarch-dev
           update-ca-certificates
 
       - name: Install .NET SDK 6.0 (for FunSeeker)
@@ -82,3 +85,71 @@ jobs:
           path: |
             rtrace-${{ matrix.edition }}-linux-x64.tar.gz
             rtrace-${{ matrix.edition }}-linux-x64.tar.gz.sha256
+
+  # Install each bundle on a CLEAN ubuntu:24.04 (no build tools, no system
+  # python packages) and run a real trace, proving the tarball is genuinely
+  # self-contained. A full heavy-edition mode-0 run is deliberately not part of
+  # the smoke test: mode 0 runs angr prototype analysis over every loaded
+  # module (libc included), which takes far too long for CI.
+  smoke-test:
+    needs: build
+    runs-on: ubuntu-latest
+    container:
+      image: ubuntu:24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        edition: [light, heavy]
+    steps:
+      - name: Download bundle
+        uses: actions/download-artifact@v4
+        with:
+          name: rtrace-${{ matrix.edition }}-linux-x64
+
+      - name: Install bundle
+        run: |
+          set -eux
+          sha256sum -c rtrace-${{ matrix.edition }}-linux-x64.tar.gz.sha256
+          tar -C /opt -xzf rtrace-${{ matrix.edition }}-linux-x64.tar.gz
+          ln -s /opt/rtrace/bin/rtrace /usr/local/bin/rtrace
+          test "$(cat /opt/rtrace/EDITION)" = "${{ matrix.edition }}"
+
+      - name: Trace /bin/ls (mode 1)
+        run: |
+          set -eux
+          mkdir /tmp/smoke
+          rtrace --logdir /tmp/smoke --mode 1 -- /bin/ls /
+          # the coverage report must exist and attribute functions to modules
+          /opt/rtrace/python/bin/python3 - <<'EOF'
+          import glob, json
+          reports = glob.glob("/tmp/smoke/function-executed-*.json")
+          assert reports, "no coverage report produced"
+          report = json.load(open(reports[0]))
+          assert report, "coverage report is empty"
+          total = sum(len(funcs) for funcs in report.values())
+          print(f"OK: {total} executed functions across {len(report)} modules")
+          EOF
+
+      - name: Check nucleus boundary detection
+        run: |
+          set -eux
+          export RTRACE_HOME=/opt/rtrace
+          export LD_LIBRARY_PATH=/opt/rtrace/lib
+          /opt/rtrace/python/bin/python3 -c '
+          from rtrace.boundary_detection import boundary_detection_nucleus
+          entries = boundary_detection_nucleus("/bin/ls")
+          assert len(entries) > 50, f"too few entries: {len(entries)}"
+          print(f"OK: nucleus found {len(entries)} function entries in /bin/ls")'
+
+      - name: Check edition gating
+        run: |
+          set -eux
+          if [ "${{ matrix.edition }}" = "heavy" ]; then
+            /opt/rtrace/python/bin/python3 -c "import angr, capstone, networkx; print('OK: heavy deps import')"
+          else
+            # light must refuse mode 0 with a clear error instead of crashing later
+            if rtrace --logdir /tmp/refused --mode 0 -- /bin/true; then
+              echo "light edition accepted mode 0; it must refuse" >&2
+              exit 1
+            fi
+          fi

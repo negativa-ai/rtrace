@@ -8,10 +8,10 @@ and rationale. The build scripts live in [`../packaging/`](../packaging/).
 
 Two self-contained tarballs, both Linux / x86-64:
 
-| Tarball | Edition | Modes | Extra deps |
-|---|---|---|---|
-| `rtrace-light-linux-x64.tar.gz` | light | 1 | — |
-| `rtrace-heavy-linux-x64.tar.gz` | heavy | 0 + 1 | angr, capstone, networkx |
+| Tarball | Edition | Modes | Extra deps | ~Size |
+|---|---|---|---|---|
+| `rtrace-light-linux-x64.tar.gz` | light | 1 | — | 120 MB |
+| `rtrace-heavy-linux-x64.tar.gz` | heavy | 0 + 1 | angr, capstone, networkx | 250 MB |
 
 Each unpacks to an `rtrace/` directory (the `RTRACE_HOME` bundle):
 
@@ -19,9 +19,12 @@ Each unpacks to an `rtrace/` directory (the `RTRACE_HOME` bundle):
 rtrace/
 ├── bin/rtrace            launcher (symlinked into ~/.local/bin by the installer)
 ├── python/               bundled relocatable interpreter + rtrace pkg + deps
-├── dynamorio/            DynamoRIO runtime (bin64/drrun, lib64, ext, ...)
-├── lib/librtrace.so      the DynamoRIO client (+ libcapstone for nucleus)
-├── funseeker/FunSeeker   self-contained .NET publish
+├── dynamorio/            minimal DynamoRIO runtime (drrun + libdynamorio +
+│                         the drmgr/drreg/drx/drwrap extensions, ~5 MB)
+├── lib/librtrace.so      the DynamoRIO client, plus the native libs nucleus
+│                         needs (libcapstone, libbfd-multiarch, libsframe, ...)
+├── funseeker/FunSeeker   self-contained .NET publish (invariant globalization,
+│                         so no libicu needed on the host)
 └── EDITION               "light" | "heavy"
 ```
 
@@ -42,9 +45,19 @@ ABI and keeps the end-user install build-free. See the `build-bundle.sh` header.
 ## CI
 
 [`../.github/workflows/build-bundles.yml`](../.github/workflows/build-bundles.yml)
-runs the scripts in an `ubuntu:20.04` container (glibc 2.31 → broad portability)
-across an `edition: [light, heavy]` matrix, on `workflow_dispatch` and on `v*` tags,
-and uploads the tarballs + `.sha256` as artifacts.
+runs the scripts in an `ubuntu:24.04` container (glibc 2.39, matching
+`_docker/Dockerfile`) across an `edition: [light, heavy]` matrix, on
+`workflow_dispatch` and on `v*` tags, and uploads the tarballs + `.sha256` as
+artifacts.
+
+A `smoke-test` job then installs each tarball on a **clean** `ubuntu:24.04`
+container (no build tools, no libicu, no binutils) and proves it is genuinely
+self-contained: a real `--mode 1` trace of `/bin/ls` (exercising drrun,
+librtrace.so, postprocessing, and FunSeeker boundary detection on the stripped
+CET system libraries), a nucleus boundary-detection call, heavy-edition imports
+(`angr`/`capstone`/`networkx`), and the light edition's `--mode 0` refusal.
+A full mode-0 run is deliberately excluded: it runs angr prototype analysis
+over every loaded module (libc included), far too slow for CI.
 
 ## Notes / knobs
 
@@ -56,17 +69,14 @@ and uploads the tarballs + `.sha256` as artifacts.
 
 ## Validation status
 
-Validated in the `rtrace-dev` container:
-
-- FunSeeker `dotnet publish --self-contained -r linux-x64` against
-  `src/FunSeeker/FunSeeker.fsproj` produces a standalone ELF executable.
-- The light edition installs (`pip install .` + the `sr-utils` submodule) and its
-  entry point, light-path imports (no angr/capstone/nucleus), and `--mode 0`
-  rejection (exit 1) all work.
-
-Not yet run end-to-end: the full `build-native.sh` (DynamoRIO compile) and
-`build-bundle.sh` (relocatable Python + nucleus ABI build) on a clean checkout,
-and a real mode-1 trace. These are the next things to exercise in CI.
+- The full build pipeline (both editions) passed in real CI.
+- Both bundles were exercised on a pristine `ubuntu:24.04` container (no build
+  tools): mode-1 trace of `/bin/ls` end-to-end (FunSeeker boundary detection on
+  all 5 stripped CET modules, 3992 executed functions attributed), nucleus
+  detecting 271 entries in `/bin/ls`, heavy `import angr`, and light `--mode 0`
+  refusal. The same checks now run in CI as the `smoke-test` job.
+- FunSeeker output was verified byte-identical with and without
+  `InvariantGlobalization=true` + `DebugType=None` on `/bin/ls` and libc.
 
 ## Local build (if you have the submodules + toolchain)
 

@@ -26,8 +26,11 @@ def main():
     log_dir = args.logdir
     cmd = " ".join(args.cmd)
 
+    # -quiet: the bundle ships only the 64-bit release DynamoRIO libraries, and
+    # drrun's install-completeness check warns about the absent lib32/debug
+    # variants on every run otherwise.
     trace_cmd = (
-        f'{paths.drrun()} -c {paths.librtrace_so()} '
+        f'{paths.drrun()} -quiet -c {paths.librtrace_so()} '
         f'--log_dir {log_dir} --mode {args.mode} -- {cmd}'
     )
     retcode = shell_system(trace_cmd)

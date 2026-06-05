@@ -26,6 +26,9 @@ dependencies = [
 # Heavy edition (modes 0 + 1) adds the mode-0 prototype/CFG analysis stack.
 heavy = [
     "angr==9.2.102",
+    # angr 9.2.102 assigns CLexer.filename, which pycparser >= 2.23 turned into a
+    # read-only property; without this pin `import angr` crashes.
+    "pycparser==2.22",
     "capstone==5.0.0.post1",
     "networkx",
 ]
