@@ -59,6 +59,20 @@ CET system libraries), a nucleus boundary-detection call, heavy-edition imports
 A full mode-0 run is deliberately excluded: it runs angr prototype analysis
 over every loaded module (libc included), far too slow for CI.
 
+## Releases
+
+On `v*` tags, after the smoke tests pass, the `release` job publishes a GitHub
+Release with both tarballs and their `.sha256` checksums attached, and notes
+containing verify + install instructions. It needs no secrets beyond the
+workflow's built-in `GITHUB_TOKEN` (`contents: write`).
+
+Cutting a release:
+
+```bash
+git tag v0.1.0
+git push origin v0.1.0
+```
+
 ## Notes / knobs
 
 - **No secrets required** — all submodules are public and cloned over https.
@@ -88,7 +102,7 @@ packaging/build-bundle.sh  --prefix /tmp/staging/rtrace --edition light \
 tar -C /tmp/staging -czf rtrace-light-linux-x64.tar.gz rtrace
 ```
 
-## Next (Phase 3/4)
+## Next (Phase 4)
 
-Signing (`SHA256SUMS` + minisign/GPG), the `curl | sh` installer with
-`--edition`, and the tag-driven GitHub Release publish.
+The `curl | sh` installer with `--edition`, downloading the latest GitHub
+Release and verifying the sha256 checksum before extracting.
