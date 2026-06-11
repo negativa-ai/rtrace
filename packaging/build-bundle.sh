@@ -71,13 +71,30 @@ echo "==> pip install sr-utils submodule"
 "$PY" -m pip install --no-warn-script-location "$REPO_ROOT/submodules/sr-utils"
 
 # --- 4. nucleus bindings (native) -- both editions ----------------------------
-# Built by build-native.sh into <prefix>/.nucleus-build; install into the bundle
-# interpreter so it lands in the bundle's site-packages with a matching ABI.
-if [ -d "$PREFIX/.nucleus-build" ]; then
-  echo "==> install nucleus bindings into bundle interpreter"
-  "$PY" -m pip install --no-warn-script-location "$PREFIX/.nucleus-build" \
-    || ( cd "$PREFIX/.nucleus-build" && "$PY" setup.py install )
-  rm -rf "$PREFIX/.nucleus-build"
+# Sources staged by build-native.sh into <prefix>/.nucleus-src; compile into the
+# bundle interpreter so it lands in the bundle's site-packages with a matching ABI.
+if [ -d "$PREFIX/.nucleus-src" ]; then
+  echo "==> install nucleus bindings into bundle interpreter (force g++)"
+  NUC="$PREFIX/.nucleus-src/bindings/python"
+  # python-build-standalone is a clang-built interpreter, so its sysconfig drives
+  # distutils to clang++ (which is not installed in the build image). Force the
+  # system g++/gcc -- the compiler the dev container validated nucleus against --
+  # so pybind11's cpp_flag probe and the extension build succeed.
+  export CC="${CC:-gcc}" CXX="${CXX:-g++}"
+  # nucleus's setup.py imports pybind11 at build time. dev.sh built it against the
+  # conda interpreter that already had pybind11; here we install it into the bundle
+  # interpreter and build without isolation so the build sees it.
+  "$PY" -m pip install --no-warn-script-location pybind11==2.13.6
+  "$PY" -m pip install --no-warn-script-location --no-build-isolation "$NUC" \
+    || ( cd "$NUC" && "$PY" setup.py install )
+  rm -rf "$PREFIX/.nucleus-src"
+  # nucleus links libbfd from binutils-multiarch (which pulls in libsframe etc.);
+  # those exist on the build image but not on minimal hosts. Ship them next to
+  # libcapstone in <prefix>/lib, which the launcher puts on LD_LIBRARY_PATH.
+  NUC_SO="$(ls "$PY_PREFIX"/lib/python*/site-packages/nucleus*.so)"
+  ldd "$NUC_SO" | awk '/=> \//{print $3}' \
+    | grep -E 'libbfd|libopcodes|libsframe|libz\.so|libzstd' \
+    | while read -r dep; do cp -aL "$dep" "$PREFIX/lib/"; done
 fi
 
 # --- 5. launcher --------------------------------------------------------------
