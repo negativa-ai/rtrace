@@ -81,6 +81,10 @@ if [ -d "$PREFIX/.nucleus-src" ]; then
   # system g++/gcc -- the compiler the dev container validated nucleus against --
   # so pybind11's cpp_flag probe and the extension build succeed.
   export CC="${CC:-gcc}" CXX="${CXX:-g++}"
+  # Link libstdc++/libgcc statically: the module otherwise binds GLIBCXX_*
+  # symbols of the build image's libstdc++, breaking hosts with an older one.
+  # distutils appends $LDFLAGS to its shared-object link line.
+  export LDFLAGS="-static-libstdc++ -static-libgcc${LDFLAGS:+ $LDFLAGS}"
   # nucleus's setup.py imports pybind11 at build time. dev.sh built it against the
   # conda interpreter that already had pybind11; here we install it into the bundle
   # interpreter and build without isolation so the build sees it.
