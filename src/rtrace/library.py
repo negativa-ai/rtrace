@@ -115,7 +115,10 @@ class Library(object):
         if func_info_dir is None:
             func_info_dir = str(paths.cache_dir())
         self.so_path = so_path
-        self._elffile = ELFFile(open(so_path, 'rb'))
+        # pyelftools reads sections lazily, so the underlying file must stay
+        # open for the lifetime of the Library; call close() when done.
+        self._file = open(so_path, 'rb')
+        self._elffile = ELFFile(self._file)
         self._instructions = []
         self._addr_to_instruction = {}
         self._functions = []
@@ -155,6 +158,10 @@ class Library(object):
                     json.dump(function_json_data, output_file, indent=4)
         self._functions.sort(key=lambda f: f.start)
 
+    def close(self):
+        """Close the underlying ELF file handle."""
+        self._file.close()
+
     def _list_executable_sections(self):
         sections = []
         for section in self._elffile.iter_sections():
@@ -191,8 +198,8 @@ class Library(object):
         elif self.boundary_detection_method == 'linear':
             if self.debug_sym_file is not None:
                 print(f"Using linear boundary detection for {self.so_path}, {self.debug_sym_file}")
-                debug_sym_file = ELFFile(open(self.debug_sym_file, 'rb'))
-                entry_addrs = boundary_detection_linear(debug_sym_file)
+                with open(self.debug_sym_file, 'rb') as f:
+                    entry_addrs = boundary_detection_linear(ELFFile(f))
             else:
                 print(f"Using linear boundary detection for {self.so_path}")
                 entry_addrs = boundary_detection_linear(self._elffile)
@@ -241,9 +248,9 @@ class Library(object):
                 func_start_to_name[start_addr].append(symbol.name)
 
         if self.debug_sym_file is not None:
-            debug_sym_file = ELFFile(open(self.debug_sym_file, 'rb'))
-            symtab = debug_sym_file.get_section_by_name('.symtab')
-            set_symbols(symtab)
+            with open(self.debug_sym_file, 'rb') as f:
+                symtab = ELFFile(f).get_section_by_name('.symtab')
+                set_symbols(symtab)
             return func_start_to_name
         else:
             if self._has_symtab():
