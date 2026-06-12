@@ -44,14 +44,16 @@ class BlockInfo(object):
             with open(f"{log_dir}/rtrace-intermediate-{pid}-{tid}-block_info.log", "r") as f:
                 for line in f:
                     parts = line.split(":")
-                    assert len(parts) == 2, f"Invalid block info line: {line}"
+                    if len(parts) != 2:
+                        raise ValueError(f"Invalid block info line: {line!r}")
                     addr = int(parts[0].strip())
                     num_insts = int(parts[1].strip())
                     if addr in self.block_info:
-                        assert self.block_info[addr] == num_insts, (
-                            f"Duplicate block address {addr} with different instruction "
-                            f"counts: {self.block_info[addr]} vs {num_insts}"
-                        )
+                        if self.block_info[addr] != num_insts:
+                            raise ValueError(
+                                f"Duplicate block address {addr} with different instruction "
+                                f"counts: {self.block_info[addr]} vs {num_insts}"
+                            )
                     else:
                         self.block_info[addr] = num_insts
 
