@@ -10,6 +10,7 @@ The edition is detected at runtime by the presence of the ``angr`` dependency,
 which is installed only in the heavy edition. ``find_spec`` checks availability
 without paying the cost of importing ``angr``.
 """
+
 import importlib.util
 import sys
 

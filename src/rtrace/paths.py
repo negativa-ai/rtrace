@@ -9,6 +9,7 @@ existing developer build (``dev.sh`` / ``src/build.sh``).
 Individual paths can always be overridden by their dedicated environment variable,
 which takes precedence over both layouts.
 """
+
 import os
 from pathlib import Path
 

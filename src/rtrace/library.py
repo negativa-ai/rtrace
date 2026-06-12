@@ -1,6 +1,6 @@
+import json
 import os
 import struct
-import json
 
 from elftools.elf.elffile import ELFFile, SymbolTableSection
 
@@ -12,17 +12,21 @@ from . import paths
 try:
     from capstone import CS_GRP_CALL, CS_GRP_JUMP, CS_GRP_RET
     from capstone.x86_const import (
-        X86_INS_ENDBR64, X86_INS_ENDBR32, X86_INS_NOP,
-        X86_OP_MEM, X86_OP_REG,
+        X86_INS_ENDBR32,
+        X86_INS_ENDBR64,
+        X86_INS_NOP,
+        X86_OP_MEM,
+        X86_OP_REG,
     )
 except ImportError:
     pass
 
-from .disassembler import disassemble_data
 from .boundary_detection import (
-    boundary_detection_funseeker, boundary_detection_linear,
+    boundary_detection_funseeker,
+    boundary_detection_linear,
     boundary_detection_nucleus,
 )
+from .disassembler import disassemble_data
 from .utils import is_func_symbol
 
 
@@ -36,7 +40,10 @@ class Instruction(object):
         self.so_path = so_path  # path to the shared object file, if applicable
 
     def __repr__(self):
-        return f"{self.so_path}:{self.section_name}:{hex(self.address)} {self.insn.mnemonic} {self.insn.op_str}"
+        return (
+            f"{self.so_path}:{self.section_name}:{hex(self.address)} "
+            f"{self.insn.mnemonic} {self.insn.op_str}"
+        )
 
     def is_endbr(self):
         return self.insn.id in (X86_INS_ENDBR64, X86_INS_ENDBR32)
@@ -81,8 +88,9 @@ class Instruction(object):
         return False
 
     def get_potential_leading_call(self):
-        assert self.is_potential_indirect_return_endbr(
-        ), "Instruction is not a potential indirect return endbr"
+        assert self.is_potential_indirect_return_endbr(), (
+            "Instruction is not a potential indirect return endbr"
+        )
 
         # call/jmp, then endbr
         if self.prev.is_jmp() or self.prev.is_call():
@@ -103,32 +111,40 @@ class Function(object):
 
 
 class Library(object):
-    INIT_FINI_SEC_NAMES = ['.init_array', '.fini_array']
+    INIT_FINI_SEC_NAMES = [".init_array", ".fini_array"]
 
-    def __init__(self, so_path, analyze_function_prototypes=False, func_info_dir=None, boundary_detection_method=None, debug_sym_file=None):
+    def __init__(
+        self,
+        so_path,
+        analyze_function_prototypes=False,
+        func_info_dir=None,
+        boundary_detection_method=None,
+        debug_sym_file=None,
+    ):
         if func_info_dir is None:
             func_info_dir = str(paths.cache_dir())
         self.so_path = so_path
         # pyelftools reads sections lazily, so the underlying file must stay
         # open for the lifetime of the Library; call close() when done.
-        self._file = open(so_path, 'rb')
+        self._file = open(so_path, "rb")
         self._elffile = ELFFile(self._file)
         self._instructions = []
         self._addr_to_instruction = {}
         self._functions = []
         self.boundary_detection_method = boundary_detection_method
         self.debug_sym_file = debug_sym_file
-        # this is different from function _get_function_ind_at_address, this maps exact start address to function object
+        # unlike _get_function_ind_at_address (range lookup), this maps the
+        # exact start address to the function object
         self._addr_to_function = {}
-        self.function_info_path = f'{func_info_dir}/{os.path.basename(so_path)}.info'
+        self.function_info_path = f"{func_info_dir}/{os.path.basename(so_path)}.info"
         if os.path.exists(self.function_info_path):
-            with open(self.function_info_path, 'r') as f:
+            with open(self.function_info_path, "r") as f:
                 funcs = json.load(f)
             for f in funcs:
-                func = Function(f['start'], f['end'], f['name'], self.so_path)
-                func.num_args = f.get('num_args', 0)
-                func.args_size = f.get('args_size', [])
-                func.ret_size = f.get('ret_size', 0)
+                func = Function(f["start"], f["end"], f["name"], self.so_path)
+                func.num_args = f.get("num_args", 0)
+                func.args_size = f.get("args_size", [])
+                func.ret_size = f.get("ret_size", 0)
                 self._functions.append(func)
         else:
             self._create_functions()
@@ -138,17 +154,19 @@ class Library(object):
             if not os.path.exists(func_info_dir):
                 os.makedirs(func_info_dir)
             if not os.path.exists(self.function_info_path):
-                with open(self.function_info_path, 'w') as output_file:
+                with open(self.function_info_path, "w") as output_file:
                     function_json_data = []
                     for f in self._functions:
-                        function_json_data.append({
-                            'start': f.start,
-                            'end': f.end,
-                            'name': f.name,
-                            'num_args': f.num_args,
-                            'args_size': f.args_size,
-                            'ret_size': f.ret_size
-                        })
+                        function_json_data.append(
+                            {
+                                "start": f.start,
+                                "end": f.end,
+                                "name": f.name,
+                                "num_args": f.num_args,
+                                "args_size": f.args_size,
+                                "ret_size": f.ret_size,
+                            }
+                        )
                     json.dump(function_json_data, output_file, indent=4)
         self._functions.sort(key=lambda f: f.start)
 
@@ -159,22 +177,23 @@ class Library(object):
     def _list_executable_sections(self):
         sections = []
         for section in self._elffile.iter_sections():
-            if section['sh_flags'] & 0x4:
+            if section["sh_flags"] & 0x4:
                 sections.append(section.name)
         return sections
 
     def _has_symtab(self):
-        return self._elffile.get_section_by_name('.symtab') is not None
-    
+        return self._elffile.get_section_by_name(".symtab") is not None
+
     def _cet_enabled(self):
         # Check if IBT is enabled by looking for .note.gnu.property section
-        note_section = self._elffile.get_section_by_name('.note.gnu.property')
+        note_section = self._elffile.get_section_by_name(".note.gnu.property")
         if note_section is None:
             return False
         for note in note_section.iter_notes():
-            if note['n_desc'][0]['pr_data'] == 3:
+            if note["n_desc"][0]["pr_data"] == 3:
                 return True
         return False
+
     def _function_boundary_detection(self):
         # If method is specified, use it
         # if not specified, use linear if symtab available, otherwise funseeker detection
@@ -183,29 +202,30 @@ class Library(object):
                 print(f"Using linear boundary detection for {self.so_path}")
                 entry_addrs = boundary_detection_linear(self._elffile)
             elif self._cet_enabled():
-                print(
-                    f"Using Funseeker for function boundary detection: {self.so_path}")
+                print(f"Using Funseeker for function boundary detection: {self.so_path}")
                 entry_addrs = boundary_detection_funseeker(self.so_path)
             else:
                 print(f"Using Nucleus for function boundary detection: {self.so_path}")
                 entry_addrs = boundary_detection_nucleus(self.so_path)
-        elif self.boundary_detection_method == 'linear':
+        elif self.boundary_detection_method == "linear":
             if self.debug_sym_file is not None:
                 print(f"Using linear boundary detection for {self.so_path}, {self.debug_sym_file}")
-                with open(self.debug_sym_file, 'rb') as f:
+                with open(self.debug_sym_file, "rb") as f:
                     entry_addrs = boundary_detection_linear(ELFFile(f))
             else:
                 print(f"Using linear boundary detection for {self.so_path}")
                 entry_addrs = boundary_detection_linear(self._elffile)
                 print(len(entry_addrs), "functions detected")
-        elif self.boundary_detection_method == 'funseeker':
+        elif self.boundary_detection_method == "funseeker":
             print(f"Using Funseeker for function boundary detection: {self.so_path}")
             entry_addrs = boundary_detection_funseeker(self.so_path)
-        elif self.boundary_detection_method == 'nucleus':
+        elif self.boundary_detection_method == "nucleus":
             print(f"Using Nucleus for function boundary detection: {self.so_path}")
             entry_addrs = boundary_detection_nucleus(self.so_path)
         else:
-            raise ValueError(f"Unknown method for boundary detection: {self.boundary_detection_method}")
+            raise ValueError(
+                f"Unknown method for boundary detection: {self.boundary_detection_method}"
+            )
         entry_addrs = sorted(set(entry_addrs))  # remove duplicates and sort
         return entry_addrs
 
@@ -217,43 +237,43 @@ class Library(object):
                 continue
             data = section.data()
             addr_size = 8 if self._elffile.elfclass == 64 else 4
-            fmt = '<Q' if self._elffile.little_endian else '>Q'  # Q = uint64
+            fmt = "<Q" if self._elffile.little_endian else ">Q"  # Q = uint64
             if self._elffile.elfclass == 32:
-                fmt = '<I' if self._elffile.little_endian else '>I'  # I = uint32
+                fmt = "<I" if self._elffile.little_endian else ">I"  # I = uint32
             for i in range(0, len(data), addr_size):
-                ptr_bytes = data[i:i+addr_size]
+                ptr_bytes = data[i : i + addr_size]
                 ptr = struct.unpack(fmt, ptr_bytes)[0]
                 pointers.append(ptr)
         return pointers
 
     def _get_symbols(self):
         func_start_to_name = {}
+
         def set_symbols(sec):
             if not isinstance(sec, SymbolTableSection):
                 return
             for symbol in sec.iter_symbols():
-                start_addr = symbol['st_value']
-                if not is_func_symbol(symbol.entry['st_info']['type']):
+                start_addr = symbol["st_value"]
+                if not is_func_symbol(symbol.entry["st_info"]["type"]):
                     continue
-                if symbol.entry['st_info']['type'] != 'STT_FUNC':
+                if symbol.entry["st_info"]["type"] != "STT_FUNC":
                     continue
                 if start_addr not in func_start_to_name:
                     func_start_to_name[start_addr] = []
                 func_start_to_name[start_addr].append(symbol.name)
 
         if self.debug_sym_file is not None:
-            with open(self.debug_sym_file, 'rb') as f:
-                symtab = ELFFile(f).get_section_by_name('.symtab')
+            with open(self.debug_sym_file, "rb") as f:
+                symtab = ELFFile(f).get_section_by_name(".symtab")
                 set_symbols(symtab)
             return func_start_to_name
         else:
             if self._has_symtab():
-                symtab = self._elffile.get_section_by_name('.symtab')
+                symtab = self._elffile.get_section_by_name(".symtab")
                 set_symbols(symtab)
-            dynsymtab = self._elffile.get_section_by_name('.dynsym')
+            dynsymtab = self._elffile.get_section_by_name(".dynsym")
             set_symbols(dynsymtab)
             return func_start_to_name
-            
 
     def _set_func_names(self):
         func_start_to_name = self._get_symbols()
@@ -266,6 +286,7 @@ class Library(object):
     def _set_function_prototype(self):
         # angr is a heavy-edition (mode 0) dependency; import lazily.
         import angr
+
         print(f"Analyzing function prototypes in {self.so_path}")
         project = angr.Project(self.so_path, auto_load_libs=False)
         base_addr = project.loader.main_object.min_addr
@@ -292,8 +313,8 @@ class Library(object):
     def _create_functions(self):
         # add detected functions
         analyzed_addrs = set()
-        text_start_addr = self._elffile.get_section_by_name('.text')['sh_addr']
-        text_end_addr = text_start_addr + self._elffile.get_section_by_name('.text')['sh_size']
+        text_start_addr = self._elffile.get_section_by_name(".text")["sh_addr"]
+        text_end_addr = text_start_addr + self._elffile.get_section_by_name(".text")["sh_size"]
         entry_addrs = self._function_boundary_detection()
         # remove address outside .text section
         entry_addrs = [addr for addr in entry_addrs if text_start_addr <= addr <= text_end_addr]
@@ -304,35 +325,37 @@ class Library(object):
         entry_addrs.extend(init_fini_pointers)
         entry_addrs = sorted(set(entry_addrs))  # remove duplicates and sort
         if not entry_addrs:
-            raise ValueError(
-                f"No function entry addresses detected in {self.so_path}")
+            raise ValueError(f"No function entry addresses detected in {self.so_path}")
         for i in range(1, len(entry_addrs)):
-            start = entry_addrs[i-1]
+            start = entry_addrs[i - 1]
             end = entry_addrs[i]
             if start in analyzed_addrs:
                 continue
             analyzed_addrs.add(start)
             self._functions.append(
-                Function(start, end, f"boundary_detected_{hex(start)}", self.so_path))
+                Function(start, end, f"boundary_detected_{hex(start)}", self.so_path)
+            )
 
         self._functions.append(
-            Function(entry_addrs[-1], text_end_addr,
-                     f"boundary_detected_{hex(entry_addrs[-1])}", self.so_path)
+            Function(
+                entry_addrs[-1],
+                text_end_addr,
+                f"boundary_detected_{hex(entry_addrs[-1])}",
+                self.so_path,
+            )
         )
 
         # add init/fini functions
-        init_section = self._elffile.get_section_by_name('.init')
+        init_section = self._elffile.get_section_by_name(".init")
         if init_section:
-            init_start = init_section['sh_addr']
-            init_end = init_start + init_section['sh_size']
-            self._functions.append(
-                Function(init_start, init_end, ".init", self.so_path))
-        fini_section = self._elffile.get_section_by_name('.fini')
+            init_start = init_section["sh_addr"]
+            init_end = init_start + init_section["sh_size"]
+            self._functions.append(Function(init_start, init_end, ".init", self.so_path))
+        fini_section = self._elffile.get_section_by_name(".fini")
         if fini_section:
-            fini_start = fini_section['sh_addr']
-            fini_end = fini_start + fini_section['sh_size']
-            self._functions.append(
-                Function(fini_start, fini_end, ".fini", self.so_path))
+            fini_start = fini_section["sh_addr"]
+            fini_end = fini_start + fini_section["sh_size"]
+            self._functions.append(Function(fini_start, fini_end, ".fini", self.so_path))
 
         # sort by start address
         self._functions.sort(key=lambda f: f.start)
@@ -342,15 +365,12 @@ class Library(object):
     def decode(self):
         executable_sections = self._list_executable_sections()
         for section_name in executable_sections:
-            section_data = self._elffile.get_section_by_name(
-                section_name).data()
-            section_base_address = self._elffile.get_section_by_name(section_name)[
-                'sh_addr']
+            section_data = self._elffile.get_section_by_name(section_name).data()
+            section_base_address = self._elffile.get_section_by_name(section_name)["sh_addr"]
             instructions = disassemble_data(section_data, section_base_address)
             prev_insn = None
             for insn in instructions:
-                instruction = Instruction(
-                    insn, section_name, so_path=self.so_path)
+                instruction = Instruction(insn, section_name, so_path=self.so_path)
                 instruction.prev = prev_insn
                 self._instructions.append(instruction)
                 self._addr_to_instruction[insn.address] = instruction
@@ -360,42 +380,45 @@ class Library(object):
 
     def dump(self, output_file=None):
         if output_file is None:
-            output_file = os.path.basename(self.so_path) + '.disasm'
-        with open(output_file, 'w') as f:
+            output_file = os.path.basename(self.so_path) + ".disasm"
+        with open(output_file, "w") as f:
             executable_sections = self._list_executable_sections()
             for section_name in executable_sections:
                 f.write(f"Section: {section_name}\n")
 
             for insn in self._instructions:
                 f.write(
-                    f"{insn.address:#x} {insn.insn.mnemonic} {insn.insn.op_str} {insn.section_name}\n")
+                    f"{insn.address:#x} {insn.insn.mnemonic} "
+                    f"{insn.insn.op_str} {insn.section_name}\n"
+                )
 
     def get_instruction_at_address(self, address):
         if address in self._addr_to_instruction:
             return self._addr_to_instruction[address]
         else:
             print(
-                f"Warning: Address not found in cached instructions, disassembling on-the-fly: {address:#x}.")
+                f"Warning: Address not found in cached instructions, "
+                f"disassembling on-the-fly: {address:#x}."
+            )
             # find which section the address belongs to
             for section_name in self._list_executable_sections():
                 section = self._elffile.get_section_by_name(section_name)
-                section_base_address = section['sh_addr']
-                section_size = section['sh_size']
+                section_base_address = section["sh_addr"]
+                section_size = section["sh_size"]
                 if section_base_address <= address < section_base_address + section_size:
                     section_data = section.data()
                     offset_in_section = address - section_base_address
                     if offset_in_section < len(section_data):
                         insn = disassemble_data(
-                            section_data[offset_in_section:offset_in_section+16],
-                            section_base_address + offset_in_section)
+                            section_data[offset_in_section : offset_in_section + 16],
+                            section_base_address + offset_in_section,
+                        )
                         if insn:
-                            decoded_insn = Instruction(
-                                insn[0], section_name, so_path=self.so_path)
+                            decoded_insn = Instruction(insn[0], section_name, so_path=self.so_path)
                             self._addr_to_instruction[address] = decoded_insn
                             self._instructions.append(decoded_insn)
                             return decoded_insn
-            raise ValueError(
-                f"Cannot find instruction at address {address:#x} in {self.so_path}")
+            raise ValueError(f"Cannot find instruction at address {address:#x} in {self.so_path}")
 
     def _get_function_ind_at_address(self, address):
         # binary search for the function
@@ -403,7 +426,7 @@ class Library(object):
         low, high = 0, len(self._functions) - 1
         while low <= high:
             mid = (low + high) // 2
-            func = self._functions[mid]     
+            func = self._functions[mid]
             if func.start <= address < func.end:
                 return mid
             elif address < func.start:
@@ -426,22 +449,20 @@ class Library(object):
             return False
         # remove the function
         if self._functions[index].start != address:
-            print(
-                f"Warning: Removing function at address {address:#x} in {self.so_path}")
+            print(f"Warning: Removing function at address {address:#x} in {self.so_path}")
             return False
         if index == 0:
             self._functions[1].start = self._functions[0].start
             self._functions.pop(0)
         else:
-            self._functions[index-1].end = self._functions[index].end
+            self._functions[index - 1].end = self._functions[index].end
             self._functions.pop(index)
         return True
 
     def insert_function_at_address(self, address):
         # Check if the address is already a function start
         if self.is_function_start(address):
-            print(
-                f"Function already exists at address {address:#x} in {self.so_path}")
+            print(f"Function already exists at address {address:#x} in {self.so_path}")
             return False
 
         index = self._get_function_ind_at_address(address)
@@ -449,18 +470,20 @@ class Library(object):
             if address < self._functions[0].start:
                 # Insert at the beginning
                 end = self._functions[0].start
-                self._functions.insert(0, Function(
-                    address, end, "post_detected", self.so_path))
+                self._functions.insert(0, Function(address, end, "post_detected", self.so_path))
                 return True
             else:
                 raise ValueError(
-                    f"Cannot insert function at address {address:#x} in {self.so_path}: no suitable position found.")
+                    f"Cannot insert function at address {address:#x} in "
+                    f"{self.so_path}: no suitable position found."
+                )
         else:
             # insert within the existing function range
             inserted_func = Function(
-                address, self._functions[index].end, "post_detected", self.so_path)
+                address, self._functions[index].end, "post_detected", self.so_path
+            )
             self._functions[index].end = address
-            self._functions.insert(index+1, inserted_func)
+            self._functions.insert(index + 1, inserted_func)
             return True
 
     def is_function_start(self, address):
