@@ -19,10 +19,6 @@ def _get_disassembler():
     return _DISASSEMBLER
 
 
-def disassemble_so_path(so_path):
-    raise NotImplementedError("This function is not implemented yet.")
-
-
 def disassemble_data(data, base):
     insns = []
     for insn in _get_disassembler().disasm(data, base):

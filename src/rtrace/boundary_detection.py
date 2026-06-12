@@ -8,13 +8,11 @@ def boundary_detection_funseeker(so_path):
     detect_cmd = f"{paths.funseeker_bin()} {so_path}"
     output, retcode = shell_get_stdout_retcode(detect_cmd)
     assert retcode == 0, f"FunSeeker failed with code {retcode}"
-    checked_addrs = set()
     detected_entry_addrs = []
     for line in output.splitlines():
         if not line.startswith("FunctionEntry:"):
             continue
         addr = int(line.split(":")[1].strip(), 16)
-        checked_addrs.add(addr)
         detected_entry_addrs.append(addr)
 
     # sort symbols by start address
