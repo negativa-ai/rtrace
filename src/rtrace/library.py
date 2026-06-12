@@ -302,6 +302,9 @@ class Library(object):
         init_fini_pointers = [addr for addr in init_fini_pointers if addr != 0]
         entry_addrs.extend(init_fini_pointers)
         entry_addrs = sorted(set(entry_addrs))  # remove duplicates and sort
+        if not entry_addrs:
+            raise ValueError(
+                f"No function entry addresses detected in {self.so_path}")
         for i in range(1, len(entry_addrs)):
             start = entry_addrs[i-1]
             end = entry_addrs[i]
@@ -313,7 +316,7 @@ class Library(object):
 
         self._functions.append(
             Function(entry_addrs[-1], text_end_addr,
-                     f"boundary_detected_{entry_addrs[-1]}", self.so_path)
+                     f"boundary_detected_{hex(entry_addrs[-1])}", self.so_path)
         )
 
         # add init/fini functions
