@@ -92,5 +92,5 @@ class TestGetLoadedModule:
     def test_rejects_malformed_line(self, tmp_path, stub_module):
         _write_modules_log(tmp_path, 100, 200, ["/lib/a.so : 4096"])
 
-        with pytest.raises(AssertionError, match="Invalid line format"):
+        with pytest.raises(ValueError, match="Invalid line format"):
             get_loaded_module(100, [200], str(tmp_path))

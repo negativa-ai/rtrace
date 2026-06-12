@@ -12,6 +12,16 @@ logger = logging.getLogger(__name__)
 
 FUNCTION_INFO_DIR = str(paths.cache_dir())
 
+# identify_false_negatives anchors on the dynamic loader's lazy-binding fixup:
+# when execution passes through this exact instruction offset inside ld.so, the
+# branch target two entries later in the branch_taken log is a freshly resolved
+# function entry. The offset is tied to one specific ld.so build (the Ubuntu
+# 22.04 / glibc 2.35 loader the bundles are built against); on a different
+# loader build this anchor simply never matches and no false negatives are
+# recovered. This coupling is deliberate — the constants make it visible.
+_LDSO_PATH = "/usr/lib/x86_64-linux-gnu/ld-linux-x86-64.so.2"
+_LDSO_FIXUP_CALL_OFFSET = 0x56D5
+
 
 class Node(object):
     def __init__(
@@ -92,9 +102,8 @@ class Node(object):
         return indirect_jmp_exist
 
     def get_potential_leading_call(self):
-        assert self.is_potential_indirect_return_endbr(), (
-            "Node is not a potential indirect return endbr"
-        )
+        if not self.is_potential_indirect_return_endbr():
+            raise RuntimeError("Node is not a potential indirect return endbr")
         insn = self._insn.get_potential_leading_call()
         return insn
 
@@ -171,13 +180,21 @@ def identify_false_positives(address_to_node, branch_taken):
         if node.is_potential_indirect_return_endbr():
             for ind in node.inds:
                 cur_address = node.address + node.base
-                assert cur_address == branch_taken[ind]
+                if cur_address != branch_taken[ind]:
+                    raise RuntimeError(
+                        f"Node address {cur_address:#x} does not match "
+                        f"branch_taken[{ind}] ({branch_taken[ind]:#x})"
+                    )
                 # find another node that has the same address before the current one
+                j = -1
                 for j in range(ind - 1, -1, -1):
                     if branch_taken[j] == cur_address:
                         j = j + 1
                         break
-                assert j >= 0
+                if j < 0:
+                    raise RuntimeError(
+                        f"No predecessor window found for address {cur_address:#x} at index {ind}"
+                    )
                 examined_addresses = set(branch_taken[j + 1 : ind])
                 # get potential leading call address
                 potential_leading_insn = node.get_potential_leading_call()
@@ -195,11 +212,7 @@ def identify_false_negatives(address_to_node, branch_taken):
     fns = set()
     for i, b in enumerate(branch_taken):
         node = address_to_node[b]
-        if (
-            node
-            and node.so_name == "/usr/lib/x86_64-linux-gnu/ld-linux-x86-64.so.2"
-            and node.address == 0x56D5
-        ):
+        if node and node.so_name == _LDSO_PATH and node.address == _LDSO_FIXUP_CALL_OFFSET:
             fb = branch_taken[i + 2]
             fn_node = address_to_node[fb]
             if fn_node.is_in_plt():

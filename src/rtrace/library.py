@@ -91,9 +91,8 @@ class Instruction(object):
         return False
 
     def get_potential_leading_call(self):
-        assert self.is_potential_indirect_return_endbr(), (
-            "Instruction is not a potential indirect return endbr"
-        )
+        if not self.is_potential_indirect_return_endbr():
+            raise RuntimeError("Instruction is not a potential indirect return endbr")
 
         # call/jmp, then endbr
         if self.prev.is_jmp() or self.prev.is_call():

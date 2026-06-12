@@ -7,7 +7,8 @@ from .utils import is_func_symbol
 def boundary_detection_funseeker(so_path):
     detect_cmd = f"{paths.funseeker_bin()} {so_path}"
     output, retcode = shell_get_stdout_retcode(detect_cmd)
-    assert retcode == 0, f"FunSeeker failed with code {retcode}"
+    if retcode != 0:
+        raise RuntimeError(f"FunSeeker failed with code {retcode} for {so_path}:\n{output}")
     detected_entry_addrs = []
     for line in output.splitlines():
         if not line.startswith("FunctionEntry:"):

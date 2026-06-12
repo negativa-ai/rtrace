@@ -95,7 +95,8 @@ def get_loaded_module(
             modules = []
             for line in lines:
                 parts = line.strip().split(":")
-                assert len(parts) == 3, f"Invalid line format: {line.strip()}"
+                if len(parts) != 3:
+                    raise ValueError(f"Invalid line format: {line.strip()!r} in {file_path}")
                 so_path = parts[0].strip()
                 start = int(parts[1].strip())
                 end = int(parts[2].strip())

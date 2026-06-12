@@ -59,10 +59,16 @@ class TestBlockInfo:
 
         assert info.get_block_size(4096) == 5
 
+    def test_malformed_line_rejected(self, tmp_path):
+        self._write_log(tmp_path, 100, 200, ["4096"])
+
+        with pytest.raises(ValueError, match="Invalid block info line"):
+            BlockInfo(100, [200], str(tmp_path))
+
     def test_duplicate_address_different_count_rejected(self, tmp_path):
         self._write_log(tmp_path, 100, 200, ["4096 : 5", "4096 : 6"])
 
-        with pytest.raises(AssertionError, match="Duplicate block address"):
+        with pytest.raises(ValueError, match="Duplicate block address"):
             BlockInfo(100, [200], str(tmp_path))
 
     def test_merges_multiple_tids(self, tmp_path):
