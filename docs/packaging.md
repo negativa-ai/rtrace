@@ -45,13 +45,22 @@ ABI and keeps the end-user install build-free. See the `build-bundle.sh` header.
 ## CI
 
 [`../.github/workflows/build-bundles.yml`](../.github/workflows/build-bundles.yml)
-runs the scripts in an `ubuntu:24.04` container (glibc 2.39, matching
-`_docker/Dockerfile`) across an `edition: [light, heavy]` matrix, on
-`workflow_dispatch` and on `v*` tags, and uploads the tarballs + `.sha256` as
-artifacts.
+runs the scripts in an `ubuntu:22.04` container across an
+`edition: [light, heavy]` matrix, on `workflow_dispatch` and on `v*` tags, and
+uploads the tarballs + `.sha256` as artifacts.
 
-A `smoke-test` job then installs each tarball on a **clean** `ubuntu:24.04`
-container (no build tools, no libicu, no binutils) and proves it is genuinely
+The build base is deliberately *older* than the 24.04 dev environment: compiled
+binaries bind to the build base's glibc symbol versions, so the build base sets
+the oldest distro users can run on. Building on 22.04 gives a **glibc >= 2.35**
+floor (Ubuntu 22.04+, Debian 12+, Fedora 36+, RHEL 9+). The nucleus module is
+additionally linked with `-static-libstdc++` so it does not depend on the
+host's libstdc++ version. The bundled Python (python-build-standalone) and
+FunSeeker (self-contained .NET) are portable well below this floor; only the
+components we compile set it.
+
+A `smoke-test` job then installs each tarball on a **clean** `ubuntu:22.04`
+container — the oldest supported distro, so it also guards the glibc floor —
+(no build tools, no libicu, no binutils) and proves it is genuinely
 self-contained: a real `--mode 1` trace of `/bin/ls` (exercising drrun,
 librtrace.so, postprocessing, and FunSeeker boundary detection on the stripped
 CET system libraries), a nucleus boundary-detection call, heavy-edition imports
@@ -83,12 +92,14 @@ git push origin v0.1.0
 
 ## Validation status
 
-- The full build pipeline (both editions) passed in real CI.
-- Both bundles were exercised on a pristine `ubuntu:24.04` container (no build
-  tools): mode-1 trace of `/bin/ls` end-to-end (FunSeeker boundary detection on
-  all 5 stripped CET modules, 3992 executed functions attributed), nucleus
-  detecting 271 entries in `/bin/ls`, heavy `import angr`, and light `--mode 0`
-  refusal. The same checks now run in CI as the `smoke-test` job.
+- The full build pipeline (both editions) passed in real CI, and the published
+  v0.1.0-alpha assets were installed and exercised end-to-end as an
+  unprivileged user on pristine containers (both editions).
+- A 22.04-built light bundle was tested across a distro matrix; every component
+  (bundled python, nucleus, FunSeeker, full mode-1 trace) passes on
+  ubuntu 22.04 / 24.04, debian 12 / 13, and fedora 42. Ubuntu 20.04
+  (glibc 2.31, past standard EOL) fails in drrun/nucleus as expected — that is
+  the floor.
 - FunSeeker output was verified byte-identical with and without
   `InvariantGlobalization=true` + `DebugType=None` on `/bin/ls` and libc.
 
@@ -102,7 +113,11 @@ packaging/build-bundle.sh  --prefix /tmp/staging/rtrace --edition light \
 tar -C /tmp/staging -czf rtrace-light-linux-x64.tar.gz rtrace
 ```
 
-## Next (Phase 4)
+## Installer
 
-The `curl | sh` installer with `--edition`, downloading the latest GitHub
-Release and verifying the sha256 checksum before extracting.
+[`../install.sh`](../install.sh) is the end-user `curl | sh` installer: it
+downloads the requested edition from GitHub Releases (latest by default, or
+`--version vX.Y.Z`), verifies the sha256 checksum, extracts to
+`~/.local/share/rtrace`, links `~/.local/bin/rtrace`, warns when the host's
+glibc is below the 2.35 floor or `~/.local/bin` is not on `PATH`, and supports
+`--uninstall`. It is plain POSIX sh and needs only curl, tar, and sha256sum.
