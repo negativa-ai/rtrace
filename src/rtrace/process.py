@@ -83,7 +83,7 @@ def get_loaded_module(pid, tids, input_dir, mode=0, bd_algo=None, bd_cache_dir=N
             if m.path in module_path_set:
                 continue
             dep_modules.append(m)
-            module_path_set.add(m)
+            module_path_set.add(m.path)
         return dep_modules
 
     all_modules=[]

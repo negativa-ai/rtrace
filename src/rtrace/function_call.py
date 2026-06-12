@@ -28,7 +28,7 @@ class Call(object):
         self.ret_val = ret_val
 
     def __repr__(self):
-        return f"Call(name={self.name}, abs_addr={self.abs}, so_path={self.so_path}"
+        return f"Call(name={self.name}, abs_addr={self.abs_addr}, so_path={self.so_path})"
 
 
 class BlockInfo(object):
