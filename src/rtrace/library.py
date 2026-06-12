@@ -10,10 +10,10 @@ from . import paths
 # Instruction class methods, which run exclusively in mode 0, so guard the import
 # to let the light edition load this module without capstone installed.
 try:
-    from capstone import *
+    from capstone import CS_GRP_CALL, CS_GRP_JUMP, CS_GRP_RET
     from capstone.x86_const import (
-        X86_INS_ENDBR64, X86_INS_ENDBR32, X86_INS_RET, X86_INS_NOP,
-        X86_INS_CALL, X86_OP_MEM, X86_OP_REG,
+        X86_INS_ENDBR64, X86_INS_ENDBR32, X86_INS_NOP,
+        X86_OP_MEM, X86_OP_REG,
     )
 except ImportError:
     pass
@@ -79,12 +79,6 @@ class Instruction(object):
             return True
 
         return False
-        # # call/jmp, then several nop or 00s, then endbr
-        # if not self.prev.is_nop():
-        #     return False
-        # if self.prev.prev is None:
-        #     return False
-        # return self.prev.prev.is_jmp() or self.prev.prev.is_call()
 
     def get_potential_leading_call(self):
         assert self.is_potential_indirect_return_endbr(
