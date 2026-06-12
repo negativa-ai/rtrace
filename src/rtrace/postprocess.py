@@ -7,12 +7,21 @@ from .function_call import BlockInfo, CallLogProcessor
 from .library import Instruction
 from .process import ProcessMemory
 
-
 FUNCTION_INFO_DIR = str(paths.cache_dir())
 
 
 class Node(object):
-    def __init__(self, address, base, so_name="", section_name="", insn: Instruction = None, is_function_start=False, func_start=None, func_end=None):
+    def __init__(
+        self,
+        address,
+        base,
+        so_name="",
+        section_name="",
+        insn: Instruction = None,
+        is_function_start=False,
+        func_start=None,
+        func_end=None,
+    ):
         self._insn = insn
         self.so_name = so_name
         self.section_name = section_name
@@ -80,13 +89,17 @@ class Node(object):
         return indirect_jmp_exist
 
     def get_potential_leading_call(self):
-        assert self.is_potential_indirect_return_endbr(
-        ), "Node is not a potential indirect return endbr"
+        assert self.is_potential_indirect_return_endbr(), (
+            "Node is not a potential indirect return endbr"
+        )
         insn = self._insn.get_potential_leading_call()
         return insn
 
     def __repr__(self):
-        return f"{self.so_name}: {hex(self.address)}, {self.is_function_start}, {self.section_name}, {self.base}"
+        return (
+            f"{self.so_name}: {hex(self.address)}, {self.is_function_start}, "
+            f"{self.section_name}, {self.base}"
+        )
 
     def __hash__(self):
         return hash(f"{self.so_name}:{hex(self.address)}")
@@ -94,8 +107,7 @@ class Node(object):
     def __eq__(self, other):
         if not isinstance(other, Node):
             return False
-        return (self.so_name == other.so_name and
-                self.address == other.address)
+        return self.so_name == other.so_name and self.address == other.address
 
 
 def _create_node_from_address(address, ind, process_memory):
@@ -104,15 +116,28 @@ def _create_node_from_address(address, ind, process_memory):
         node = Node(address=address, base=0, is_function_start=False)
     else:
         insn = module.get_instruction_at_address(address)
-        is_function_start = module.is_function_start(
-            address, is_relative_addr=False)
+        is_function_start = module.is_function_start(address, is_relative_addr=False)
         func = module.get_function_at_address(address)
         if func is not None:
-            node = Node(address=insn.address, base=module.start,
-                        so_name=module.path, section_name=insn.section_name, insn=insn, is_function_start=is_function_start, func_start=func.start, func_end=func.end)
+            node = Node(
+                address=insn.address,
+                base=module.start,
+                so_name=module.path,
+                section_name=insn.section_name,
+                insn=insn,
+                is_function_start=is_function_start,
+                func_start=func.start,
+                func_end=func.end,
+            )
         else:
-            node = Node(address=insn.address, base=module.start,
-                        so_name=module.path, section_name=insn.section_name, insn=insn, is_function_start=is_function_start)
+            node = Node(
+                address=insn.address,
+                base=module.start,
+                so_name=module.path,
+                section_name=insn.section_name,
+                insn=insn,
+                is_function_start=is_function_start,
+            )
     node.inds.append(ind)
     return node
 
@@ -142,15 +167,15 @@ def identify_false_positives(address_to_node, branch_taken):
     for _, node in address_to_node.items():
         if node.is_potential_indirect_return_endbr():
             for ind in node.inds:
-                cur_address = node.address+node.base
+                cur_address = node.address + node.base
                 assert cur_address == branch_taken[ind]
                 # find another node that has the same address before the current one
-                for j in range(ind-1, -1, -1):
+                for j in range(ind - 1, -1, -1):
                     if branch_taken[j] == cur_address:
-                        j = j+1
+                        j = j + 1
                         break
                 assert j >= 0
-                examined_addresses = set(branch_taken[j+1:ind])
+                examined_addresses = set(branch_taken[j + 1 : ind])
                 # get potential leading call address
                 potential_leading_insn = node.get_potential_leading_call()
                 potential_leading_call_addr = potential_leading_insn.address + node.base
@@ -159,8 +184,7 @@ def identify_false_positives(address_to_node, branch_taken):
                 if potential_leading_call_addr in examined_addresses:
                     identified_false_positives.add(node)
 
-    sorted_false_positives = sorted(
-        list(identified_false_positives), key=lambda x: x.so_name)
+    sorted_false_positives = sorted(list(identified_false_positives), key=lambda x: x.so_name)
     return sorted_false_positives
 
 
@@ -168,8 +192,12 @@ def identify_false_negatives(address_to_node, branch_taken):
     fns = set()
     for i, b in enumerate(branch_taken):
         node = address_to_node[b]
-        if node and node.so_name == "/usr/lib/x86_64-linux-gnu/ld-linux-x86-64.so.2" and node.address == 0x56d5:
-            fb = branch_taken[i+2]
+        if (
+            node
+            and node.so_name == "/usr/lib/x86_64-linux-gnu/ld-linux-x86-64.so.2"
+            and node.address == 0x56D5
+        ):
+            fb = branch_taken[i + 2]
             fn_node = address_to_node[fb]
             if fn_node.is_in_plt():
                 continue
@@ -191,17 +219,16 @@ def trapped_insns_to_func_coverage_report(trapped_insns, process_memory, output_
         so_path = module.path
         if so_path not in report:
             report[so_path] = []
-        report[so_path].append({
-            "function_name": func.name,
-            "start_offset": func.start
-        })
+        report[so_path].append({"function_name": func.name, "start_offset": func.start})
     with open(output_path, "w") as f:
         json.dump(report, f, indent=4)
 
 
 def remove_duplicate_branch_taken(branch_taken):
     """
-    rtrace can report duplicate addresses, for eaxample, an address is a target but the same time it is also a branch instruction, then it will appear twice in the branch_taken list. We need to remove the consequtive duplicate addresses.
+    rtrace can report duplicate addresses: for example, when an address is a
+    branch target and at the same time a branch instruction, it appears twice
+    in the branch_taken list. Remove such consecutive duplicates.
     0x1 jmp 0x2
     0x2 jmp 0x3
     Then 0x2 will appear twice in the branch_taken list.
@@ -210,7 +237,7 @@ def remove_duplicate_branch_taken(branch_taken):
         return branch_taken
     new_branch_taken = [branch_taken[0]]
     for i in range(1, len(branch_taken)):
-        if branch_taken[i] != branch_taken[i-1]:
+        if branch_taken[i] != branch_taken[i - 1]:
             new_branch_taken.append(branch_taken[i])
     return new_branch_taken
 
@@ -259,20 +286,38 @@ def get_func_arg_ret(pid, tid, input_dir):
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(
-        description="Postprocess script for rtrace.")
-    parser.add_argument("--input", type=str, required=True,
-                        help="Input file for postprocessing.")
-    parser.add_argument("--output", type=str, required=True,
-                        help="Output dir for postprocessing results.")
-    parser.add_argument("--filter", action='store_true')
-    parser.add_argument("--calllog", action='store_true')
-    parser.add_argument("--mode", type=int, default=0, choices=[0, 1, 2],
-                        help="0 for heavy mode, 1 for light mode, 2 for light mode with removal")
-    parser.add_argument("--bd_algo", type=str, default=None, help="Boundary detaction algorithm, linear or funseeker")
-    parser.add_argument("--bd_cache_dir",type=str, default=FUNCTION_INFO_DIR,
-                        help="Cache directory for boundary detection")
-    parser.add_argument("--so_names", type=str, default=None, help="Shared object names to filter the calllog, liba,lib,libc")
+    parser = argparse.ArgumentParser(description="Postprocess script for rtrace.")
+    parser.add_argument("--input", type=str, required=True, help="Input file for postprocessing.")
+    parser.add_argument(
+        "--output", type=str, required=True, help="Output dir for postprocessing results."
+    )
+    parser.add_argument("--filter", action="store_true")
+    parser.add_argument("--calllog", action="store_true")
+    parser.add_argument(
+        "--mode",
+        type=int,
+        default=0,
+        choices=[0, 1, 2],
+        help="0 for heavy mode, 1 for light mode, 2 for light mode with removal",
+    )
+    parser.add_argument(
+        "--bd_algo",
+        type=str,
+        default=None,
+        help="Boundary detaction algorithm, linear or funseeker",
+    )
+    parser.add_argument(
+        "--bd_cache_dir",
+        type=str,
+        default=FUNCTION_INFO_DIR,
+        help="Cache directory for boundary detection",
+    )
+    parser.add_argument(
+        "--so_names",
+        type=str,
+        default=None,
+        help="Shared object names to filter the calllog, liba,lib,libc",
+    )
     args = parser.parse_args()
     input_dir = args.input
     output_dir = args.output
@@ -289,7 +334,15 @@ if __name__ == "__main__":
     module_cache = {}
     pid_to_tids = get_pid_tid(input_dir)
     for pid, tids in pid_to_tids.items():
-        process_memory = ProcessMemory(pid, tids, input_dir, mode=mode, bd_algo=bd_algo, bd_cache_dir=bd_cache_dir, analyze_function_prototypes=(mode == 0))
+        process_memory = ProcessMemory(
+            pid,
+            tids,
+            input_dir,
+            mode=mode,
+            bd_algo=bd_algo,
+            bd_cache_dir=bd_cache_dir,
+            analyze_function_prototypes=(mode == 0),
+        )
         process_memory_cache[pid] = process_memory
         for m in process_memory.modules:
             module_cache[m.path] = m
@@ -298,8 +351,7 @@ if __name__ == "__main__":
                 print(f"Processing PID: {pid}, TID: {tid}")
                 branch_taken = get_branch_taken(pid, tid, input_dir)
                 branch_taken = remove_duplicate_branch_taken(branch_taken)
-                entry_node, addr_to_node, edges = create_cfg(
-                    branch_taken, process_memory, tid)
+                entry_node, addr_to_node, edges = create_cfg(branch_taken, process_memory, tid)
                 fps = identify_false_positives(addr_to_node, branch_taken)
                 all_fps.extend(fps)
                 fns = identify_false_negatives(addr_to_node, branch_taken)
@@ -309,22 +361,21 @@ if __name__ == "__main__":
         for node in all_fps:
             module = module_cache[node.so_name]
             print(f"remove function {node.so_name}: {hex(node.address)}")
-            module.remove_function_at_address(
-                node.address, is_relative_addr=True)
+            module.remove_function_at_address(node.address, is_relative_addr=True)
         for node in all_fns:
             module = module_cache[node.so_name]
             print(f"Insert function {node.so_name}: {hex(node.address)}")
-            module.insert_function_at_address(node.address,
-                                              is_relative_addr=True)
+            module.insert_function_at_address(node.address, is_relative_addr=True)
     if calllog:
         for pid, tids in pid_to_tids.items():
             process_memory = process_memory_cache[pid]
             block_info = BlockInfo(pid, tids, input_dir)
             for tid in tids:
                 call_processor = CallLogProcessor(
-                    process_memory, block_info, pid, tid, input_dir, so_names=so_names)
+                    process_memory, block_info, pid, tid, input_dir, so_names=so_names
+                )
                 call_processor.process_logs()
-                output_path = f'{output_dir}/function-calls-{pid}-{tid}.json'
+                output_path = f"{output_dir}/function-calls-{pid}-{tid}.json"
                 call_processor.dump(output_path)
 
     for pid, tids in pid_to_tids.items():
@@ -333,5 +384,4 @@ if __name__ == "__main__":
             print(f"Processing {pid}, {tid}")
             trapped_insns = get_executed_instrumentations(pid, tid, input_dir)
             output_file_path = f"{output_dir}/function-executed-{pid}-{tid}.json"
-            trapped_insns_to_func_coverage_report(
-                trapped_insns, process_memory, output_file_path)
+            trapped_insns_to_func_coverage_report(trapped_insns, process_memory, output_file_path)

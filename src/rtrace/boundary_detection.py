@@ -52,6 +52,7 @@ def boundary_detection_nucleus(so_path):
     # nucleus is a native module; import lazily so callers that never reach the
     # nucleus path do not require it at import time.
     import nucleus
+
     context = nucleus.load(so_path, binary_base=0x0)
     entry_addrs = []
     for function in context.cfg.functions:

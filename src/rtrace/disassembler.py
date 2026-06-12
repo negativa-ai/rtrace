@@ -11,7 +11,8 @@ _DISASSEMBLER = None
 def _get_disassembler():
     global _DISASSEMBLER
     if _DISASSEMBLER is None:
-        from capstone import Cs, CS_ARCH_X86, CS_MODE_64
+        from capstone import CS_ARCH_X86, CS_MODE_64, Cs
+
         disassembler = Cs(CS_ARCH_X86, CS_MODE_64)
         disassembler.detail = True
         disassembler.skipdata = True

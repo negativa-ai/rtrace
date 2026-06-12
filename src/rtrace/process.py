@@ -1,19 +1,32 @@
 import os
+
 from .library import Library
 
 
 class Module(object):
     """Module represents a loaded library in the process memory."""
 
-    def __init__(self, path, start, end, mode=0, bd_algo=None, bd_cache_dir=None, analyze_function_prototypes=False):
+    def __init__(
+        self,
+        path,
+        start,
+        end,
+        mode=0,
+        bd_algo=None,
+        bd_cache_dir=None,
+        analyze_function_prototypes=False,
+    ):
         self.path = path
         self.start = start
         self.end = end
-        self.lib = Library(path, boundary_detection_method=bd_algo, func_info_dir=bd_cache_dir, analyze_function_prototypes=analyze_function_prototypes)
-        if mode ==0:
+        self.lib = Library(
+            path,
+            boundary_detection_method=bd_algo,
+            func_info_dir=bd_cache_dir,
+            analyze_function_prototypes=analyze_function_prototypes,
+        )
+        if mode == 0:
             self.lib.decode()
-
-        
 
     def is_in(self, addr):
         return self.start <= addr < self.end
@@ -54,7 +67,9 @@ class Module(object):
         return self.lib.is_function_start(addr_in_module)
 
 
-def get_loaded_module(pid, tids, input_dir, mode=0, bd_algo=None, bd_cache_dir=None, analyze_function_prototypes=False):
+def get_loaded_module(
+    pid, tids, input_dir, mode=0, bd_algo=None, bd_cache_dir=None, analyze_function_prototypes=False
+):
     # first try to read the corresponding pid-tid file,
     # if it is empty, try to read another pid-tid' file
     def read_module_info(file_path):
@@ -70,15 +85,28 @@ def get_loaded_module(pid, tids, input_dir, mode=0, bd_algo=None, bd_cache_dir=N
                 start = int(parts[1].strip())
                 end = int(parts[2].strip())
                 if "libtorch_cuda.so" in so_path and bd_algo == "funseeker":
-                    print("Warning: libtorch_cuda.so is skipped for funseeker mode, as it is too large (>=2GB).")
+                    print(
+                        "Warning: libtorch_cuda.so is skipped for funseeker mode, "
+                        "as it is too large (>=2GB)."
+                    )
                     # skip libtorch_cuda.so
                     continue
-                modules.append(Module(so_path, start, end, mode=mode, bd_algo=bd_algo, bd_cache_dir=bd_cache_dir, analyze_function_prototypes=analyze_function_prototypes))
+                modules.append(
+                    Module(
+                        so_path,
+                        start,
+                        end,
+                        mode=mode,
+                        bd_algo=bd_algo,
+                        bd_cache_dir=bd_cache_dir,
+                        analyze_function_prototypes=analyze_function_prototypes,
+                    )
+                )
             return modules
-    
+
     def deduplicate_modules(modules):
-        module_path_set=set()
-        dep_modules=[]
+        module_path_set = set()
+        dep_modules = []
         for m in modules:
             if m.path in module_path_set:
                 continue
@@ -86,15 +114,15 @@ def get_loaded_module(pid, tids, input_dir, mode=0, bd_algo=None, bd_cache_dir=N
             module_path_set.add(m.path)
         return dep_modules
 
-    all_modules=[]
+    all_modules = []
     for tid in tids:
         file_path = f"{input_dir}/rtrace-intermediate-{pid}-{tid}-loaded_modules.log"
         modules = read_module_info(file_path)
         if modules is not None:
             all_modules.extend(modules)
-    if len(all_modules)>0:
+    if len(all_modules) > 0:
         return deduplicate_modules(all_modules)
-        
+
     print(f"Warning: cannot find loaded modules for {pid}-{tids}, trying to read other pids")
     # cannot find loaded modules for current pid, try with other pids
     for f in os.listdir(input_dir):
@@ -102,18 +130,36 @@ def get_loaded_module(pid, tids, input_dir, mode=0, bd_algo=None, bd_cache_dir=N
             modules = read_module_info(f"{input_dir}/{f}")
             if modules is not None:
                 all_modules.extend(modules)
-    if len(all_modules)>0:
+    if len(all_modules) > 0:
         return deduplicate_modules(all_modules)
     raise ValueError(
-        f"At least one pid-tid file should exist, but not found for pid: {pid}, tid: {tid}")
+        f"At least one pid-tid file should exist, but not found for pid: {pid}, tid: {tid}"
+    )
 
 
 class ProcessMemory(object):
-    def __init__(self, pid, tids, log_dir, mode=0, bd_algo=None, bd_cache_dir=None, analyze_function_prototypes=False):
+    def __init__(
+        self,
+        pid,
+        tids,
+        log_dir,
+        mode=0,
+        bd_algo=None,
+        bd_cache_dir=None,
+        analyze_function_prototypes=False,
+    ):
         self.pid = pid
         self.tids = tids
         self.log_dir = log_dir
-        self.modules = get_loaded_module(pid, tids, log_dir, mode=mode, bd_algo=bd_algo, bd_cache_dir=bd_cache_dir, analyze_function_prototypes=analyze_function_prototypes)
+        self.modules = get_loaded_module(
+            pid,
+            tids,
+            log_dir,
+            mode=mode,
+            bd_algo=bd_algo,
+            bd_cache_dir=bd_cache_dir,
+            analyze_function_prototypes=analyze_function_prototypes,
+        )
 
     def get_module_at_address(self, address):
         for module in self.modules:
