@@ -38,9 +38,10 @@ def main():
 
     post_process_cmd = (
         f'{sys.executable} -m rtrace.postprocess '
-        f'--input {log_dir}/ --output {log_dir} --mode {args.mode} '
-        f'--so_name {args.so_name}'
+        f'--input {log_dir}/ --output {log_dir} --mode {args.mode}'
     )
+    if args.so_name is not None:
+        post_process_cmd += f" --so_names {args.so_name}"
     if args.filter:
         post_process_cmd += " --filter"
     if args.calllog:
