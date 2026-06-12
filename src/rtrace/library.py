@@ -1,4 +1,5 @@
 import json
+import logging
 import os
 import struct
 
@@ -28,6 +29,8 @@ from .boundary_detection import (
 )
 from .disassembler import disassemble_data
 from .utils import is_func_symbol
+
+logger = logging.getLogger(__name__)
 
 
 class Instruction(object):
@@ -199,28 +202,32 @@ class Library(object):
         # if not specified, use linear if symtab available, otherwise funseeker detection
         if self.boundary_detection_method is None:
             if self._has_symtab():
-                print(f"Using linear boundary detection for {self.so_path}")
+                logger.info("Using linear boundary detection for %s", self.so_path)
                 entry_addrs = boundary_detection_linear(self._elffile)
             elif self._cet_enabled():
-                print(f"Using Funseeker for function boundary detection: {self.so_path}")
+                logger.info("Using Funseeker for function boundary detection: %s", self.so_path)
                 entry_addrs = boundary_detection_funseeker(self.so_path)
             else:
-                print(f"Using Nucleus for function boundary detection: {self.so_path}")
+                logger.info("Using Nucleus for function boundary detection: %s", self.so_path)
                 entry_addrs = boundary_detection_nucleus(self.so_path)
         elif self.boundary_detection_method == "linear":
             if self.debug_sym_file is not None:
-                print(f"Using linear boundary detection for {self.so_path}, {self.debug_sym_file}")
+                logger.info(
+                    "Using linear boundary detection for %s, %s",
+                    self.so_path,
+                    self.debug_sym_file,
+                )
                 with open(self.debug_sym_file, "rb") as f:
                     entry_addrs = boundary_detection_linear(ELFFile(f))
             else:
-                print(f"Using linear boundary detection for {self.so_path}")
+                logger.info("Using linear boundary detection for %s", self.so_path)
                 entry_addrs = boundary_detection_linear(self._elffile)
-                print(len(entry_addrs), "functions detected")
+                logger.info("%d functions detected", len(entry_addrs))
         elif self.boundary_detection_method == "funseeker":
-            print(f"Using Funseeker for function boundary detection: {self.so_path}")
+            logger.info("Using Funseeker for function boundary detection: %s", self.so_path)
             entry_addrs = boundary_detection_funseeker(self.so_path)
         elif self.boundary_detection_method == "nucleus":
-            print(f"Using Nucleus for function boundary detection: {self.so_path}")
+            logger.info("Using Nucleus for function boundary detection: %s", self.so_path)
             entry_addrs = boundary_detection_nucleus(self.so_path)
         else:
             raise ValueError(
@@ -287,7 +294,7 @@ class Library(object):
         # angr is a heavy-edition (mode 0) dependency; import lazily.
         import angr
 
-        print(f"Analyzing function prototypes in {self.so_path}")
+        logger.info("Analyzing function prototypes in %s", self.so_path)
         project = angr.Project(self.so_path, auto_load_libs=False)
         base_addr = project.loader.main_object.min_addr
         cfg = project.analyses.CFGFast(normalize=True)
@@ -396,9 +403,9 @@ class Library(object):
         if address in self._addr_to_instruction:
             return self._addr_to_instruction[address]
         else:
-            print(
-                f"Warning: Address not found in cached instructions, "
-                f"disassembling on-the-fly: {address:#x}."
+            logger.warning(
+                "Address not found in cached instructions, disassembling on-the-fly: %#x.",
+                address,
             )
             # find which section the address belongs to
             for section_name in self._list_executable_sections():
@@ -449,7 +456,7 @@ class Library(object):
             return False
         # remove the function
         if self._functions[index].start != address:
-            print(f"Warning: Removing function at address {address:#x} in {self.so_path}")
+            logger.warning("Cannot remove function at address %#x in %s", address, self.so_path)
             return False
         if index == 0:
             self._functions[1].start = self._functions[0].start
@@ -462,7 +469,7 @@ class Library(object):
     def insert_function_at_address(self, address):
         # Check if the address is already a function start
         if self.is_function_start(address):
-            print(f"Function already exists at address {address:#x} in {self.so_path}")
+            logger.warning("Function already exists at address %#x in %s", address, self.so_path)
             return False
 
         index = self._get_function_ind_at_address(address)
