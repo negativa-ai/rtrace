@@ -1,11 +1,14 @@
 import argparse
 import json
+import logging
 import os
 
 from . import paths
 from .function_call import BlockInfo, CallLogProcessor
 from .library import Instruction
 from .process import ProcessMemory
+
+logger = logging.getLogger(__name__)
 
 FUNCTION_INFO_DIR = str(paths.cache_dir())
 
@@ -286,6 +289,7 @@ def get_func_arg_ret(pid, tid, input_dir):
 
 
 if __name__ == "__main__":
+    logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
     parser = argparse.ArgumentParser(description="Postprocess script for rtrace.")
     parser.add_argument("--input", type=str, required=True, help="Input file for postprocessing.")
     parser.add_argument(
@@ -348,7 +352,7 @@ if __name__ == "__main__":
             module_cache[m.path] = m
         for tid in tids:
             if mode == 0:
-                print(f"Processing PID: {pid}, TID: {tid}")
+                logger.info("Processing PID: %s, TID: %s", pid, tid)
                 branch_taken = get_branch_taken(pid, tid, input_dir)
                 branch_taken = remove_duplicate_branch_taken(branch_taken)
                 entry_node, addr_to_node, edges = create_cfg(branch_taken, process_memory, tid)
@@ -360,11 +364,11 @@ if __name__ == "__main__":
     if filter:
         for node in all_fps:
             module = module_cache[node.so_name]
-            print(f"remove function {node.so_name}: {hex(node.address)}")
+            logger.info("remove function %s: %s", node.so_name, hex(node.address))
             module.remove_function_at_address(node.address, is_relative_addr=True)
         for node in all_fns:
             module = module_cache[node.so_name]
-            print(f"Insert function {node.so_name}: {hex(node.address)}")
+            logger.info("insert function %s: %s", node.so_name, hex(node.address))
             module.insert_function_at_address(node.address, is_relative_addr=True)
     if calllog:
         for pid, tids in pid_to_tids.items():
@@ -381,7 +385,7 @@ if __name__ == "__main__":
     for pid, tids in pid_to_tids.items():
         process_memory = process_memory_cache[pid]
         for tid in tids:
-            print(f"Processing {pid}, {tid}")
+            logger.info("Processing %s, %s", pid, tid)
             trapped_insns = get_executed_instrumentations(pid, tid, input_dir)
             output_file_path = f"{output_dir}/function-executed-{pid}-{tid}.json"
             trapped_insns_to_func_coverage_report(trapped_insns, process_memory, output_file_path)

@@ -1,8 +1,11 @@
 import json
+import logging
 
 import pandas as pd
 
 from .process import ProcessMemory
+
+logger = logging.getLogger(__name__)
 
 
 class Call(object):
@@ -93,9 +96,9 @@ class CallLogProcessor(object):
                                 if so_name in module.path:
                                     self.raw_logs.append(line.strip())
                                     break
-        print(
+        logger.info(
+            "%d function call logs loaded from %s",
             len(self.raw_logs),
-            "function call logs loaded from",
             f"{log_dir}/rtrace-intermediate-{pid}-{tid}-func_args_ret.log",
         )
 
@@ -156,12 +159,14 @@ class CallLogProcessor(object):
                     # should not happen but it does with some exit:0,
                     # might be due to exception handling
                     unmatch_entry_exit += 1
-        print(
-            f"Unmatched entry/exit: {unmatch_entry_exit}/{total_calls}; "
-            f"final stack depth: {len(stack)}"
+        logger.info(
+            "Unmatched entry/exit: %d/%d; final stack depth: %d",
+            unmatch_entry_exit,
+            total_calls,
+            len(stack),
         )
 
-        print(f"Unmatched function block: {unmatch_func_block}/{total_blocks}")
+        logger.info("Unmatched function block: %d/%d", unmatch_func_block, total_blocks)
 
     def dump(self, output_path):
         overview = []

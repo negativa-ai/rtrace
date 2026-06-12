@@ -1,6 +1,9 @@
+import logging
 import os
 
 from .library import Library
+
+logger = logging.getLogger(__name__)
 
 
 class Module(object):
@@ -97,8 +100,8 @@ def get_loaded_module(
                 start = int(parts[1].strip())
                 end = int(parts[2].strip())
                 if "libtorch_cuda.so" in so_path and bd_algo == "funseeker":
-                    print(
-                        "Warning: libtorch_cuda.so is skipped for funseeker mode, "
+                    logger.warning(
+                        "libtorch_cuda.so is skipped for funseeker mode, "
                         "as it is too large (>=2GB)."
                     )
                     # skip libtorch_cuda.so
@@ -125,7 +128,7 @@ def get_loaded_module(
     if len(all_modules) > 0:
         return deduplicate_modules(all_modules)
 
-    print(f"Warning: cannot find loaded modules for {pid}-{tids}, trying to read other pids")
+    logger.warning("cannot find loaded modules for %s-%s, trying to read other pids", pid, tids)
     # cannot find loaded modules for current pid, try with other pids
     for f in os.listdir(input_dir):
         if f.startswith("rtrace-intermediate") and f.endswith("-loaded_modules.log"):
