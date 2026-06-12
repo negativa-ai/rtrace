@@ -11,7 +11,7 @@ Two self-contained tarballs, both Linux / x86-64:
 | Tarball | Edition | Modes | Extra deps | ~Size |
 |---|---|---|---|---|
 | `rtrace-light-linux-x64.tar.gz` | light | 1 | — | 120 MB |
-| `rtrace-heavy-linux-x64.tar.gz` | heavy | 0 + 1 | angr, capstone, networkx | 250 MB |
+| `rtrace-heavy-linux-x64.tar.gz` | heavy | 0 + 1 | angr, capstone | 250 MB |
 
 Each unpacks to an `rtrace/` directory (the `RTRACE_HOME` bundle):
 
@@ -64,7 +64,7 @@ container — the oldest supported distro, so it also guards the glibc floor —
 self-contained: a real `--mode 1` trace of `/bin/ls` (exercising drrun,
 librtrace.so, postprocessing, and FunSeeker boundary detection on the stripped
 CET system libraries), a nucleus boundary-detection call, heavy-edition imports
-(`angr`/`capstone`/`networkx`), and the light edition's `--mode 0` refusal.
+(`angr`/`capstone`), and the light edition's `--mode 0` refusal.
 A full mode-0 run is deliberately excluded: it runs angr prototype analysis
 over every loaded module (libc included), far too slow for CI.
 
