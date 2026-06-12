@@ -67,6 +67,18 @@ class Module(object):
         return self.lib.is_function_start(addr_in_module)
 
 
+def deduplicate_modules(modules):
+    """Drop modules with an already-seen path, keeping the first occurrence."""
+    module_path_set = set()
+    dep_modules = []
+    for m in modules:
+        if m.path in module_path_set:
+            continue
+        dep_modules.append(m)
+        module_path_set.add(m.path)
+    return dep_modules
+
+
 def get_loaded_module(
     pid, tids, input_dir, mode=0, bd_algo=None, bd_cache_dir=None, analyze_function_prototypes=False
 ):
@@ -103,16 +115,6 @@ def get_loaded_module(
                     )
                 )
             return modules
-
-    def deduplicate_modules(modules):
-        module_path_set = set()
-        dep_modules = []
-        for m in modules:
-            if m.path in module_path_set:
-                continue
-            dep_modules.append(m)
-            module_path_set.add(m.path)
-        return dep_modules
 
     all_modules = []
     for tid in tids:
