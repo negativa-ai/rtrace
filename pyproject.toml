@@ -31,6 +31,11 @@ heavy = [
     "pycparser==2.22",
     "capstone==5.0.0.post1",
 ]
+# Development tools (lint, format, tests).
+dev = [
+    "ruff==0.15.17",
+    "pytest",
+]
 
 [project.scripts]
 rtrace = "rtrace.main:main"
@@ -41,3 +46,18 @@ package-dir = {"" = "src"}
 [tool.setuptools.packages.find]
 where = ["src"]
 include = ["rtrace*"]
+
+[tool.ruff]
+target-version = "py39"
+line-length = 100
+# Only the Python package and tests; native code and submodules are out of scope.
+include = ["src/rtrace/**/*.py", "tests/**/*.py", "pyproject.toml"]
+
+[tool.ruff.lint]
+select = [
+    "E",  # pycodestyle errors
+    "W",  # pycodestyle warnings
+    "F",  # pyflakes
+    "I",  # isort (import sorting)
+    "B",  # flake8-bugbear
+]
