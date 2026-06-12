@@ -30,7 +30,6 @@ heavy = [
     # read-only property; without this pin `import angr` crashes.
     "pycparser==2.22",
     "capstone==5.0.0.post1",
-    "networkx",
 ]
 
 [project.scripts]

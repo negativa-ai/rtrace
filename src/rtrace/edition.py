@@ -4,7 +4,7 @@ RTrace ships in two editions that differ only in their Python dependencies:
 
 * ``light`` -- supports ``--mode 1`` only.
 * ``heavy`` -- supports both ``--mode 0`` and ``--mode 1``; adds ``angr`` (plus
-  ``capstone`` and ``networkx``) for the mode-0 prototype/CFG analysis.
+  ``capstone``) for the mode-0 prototype/CFG analysis.
 
 The edition is detected at runtime by the presence of the ``angr`` dependency,
 which is installed only in the heavy edition. ``find_spec`` checks availability

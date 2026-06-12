@@ -1,12 +1,11 @@
 import argparse
 import json
 import os
-import queue
 
 from . import paths
 from .function_call import BlockInfo, CallLogProcessor
 from .library import Instruction
-from .process import Module, ProcessMemory
+from .process import ProcessMemory
 
 
 FUNCTION_INFO_DIR = str(paths.cache_dir())
@@ -98,34 +97,6 @@ class Node(object):
         return (self.so_name == other.so_name and
                 self.address == other.address)
 
-    def detect_function_start(self):
-        raise NotImplementedError("Current implementation does not work well")
-        # only work for register_tm_clones
-        if self.is_in_plt():
-            # any plt section should not be a function start
-            return False
-        depth = 0
-        q = [self, None]
-        visited = set()
-        while len(q) > 0:
-            n = q.pop(0)
-            if n is None:
-                depth += 1
-                if depth == 3:
-                    break
-                q.append(None)
-            else:
-                for i in n.ins:
-                    if i in visited:
-                        continue
-                    q.append(i)
-            print(depth)
-        for n in q:
-            if n and n.so_name == "/usr/lib/x86_64-linux-gnu/ld-2.31.so" and n.address == 0x11b98:
-                return True
-
-        return False
-
 
 def _create_node_from_address(address, ind, process_memory):
     module = process_memory.get_module_at_address(address)
@@ -165,66 +136,6 @@ def create_cfg(branch_taken, process_memory, thread_id):
     entry_node = address_to_node[branch_taken[0]]
     return entry_node, address_to_node, edges
 
-def create_cfg_partial(branch_taken, process_memory, thread_id, so_name):
-    """
-    This function creates a function call graph based on the branch_taken list for a specific shared object (so_name).
-    It now only used for liblzma analysis.
-    It will generate a dot file which can be visualized using Graphviz `dot -Tpdf graph.dot -o graph.pdf`
-    """
-    # networkx is a heavy-edition dependency, only reached by this function.
-    import networkx as nx
-    from networkx.drawing.nx_agraph import write_dot
-
-    def get_node_func(node):
-        module = process_memory.get_module_at_address(node.address+node.base)
-        func = module.get_function_at_address(node.address+node.base)
-        return func
-    
-    def gen_nx_node(node):
-        func = get_node_func(node)
-        if func is None:
-            return None
-        return f'{func.name}'
-    cur_node = _create_node_from_address(branch_taken[0], 0, process_memory)
-    address_to_node = {branch_taken[0]: cur_node}
-    filtered_branch_taken=[]
-    is_first=False
-    for ind in range(1, len(branch_taken)):
-        b = branch_taken[ind]
-        if b not in address_to_node:
-            node = _create_node_from_address(b, ind, process_memory)
-            address_to_node[b] = node
-        else:
-            node = address_to_node[b]
-        if so_name in node.so_name and not cur_node.is_in_plt() and (cur_node.is_call() or cur_node.is_jmp()):    
-            if node is not None and not node.is_ret():
-                if is_first:
-                    is_first = False
-                    filtered_branch_taken.append(cur_node)
-                filtered_branch_taken.append(node)
-        cur_node= node
-
-    print(f"Filtered branch taken length: {len(filtered_branch_taken)}")
-    second_filtered_branch_taken = []
-    for node in filtered_branch_taken:
-        nx_node= gen_nx_node(node)
-        if nx_node is not None:
-            second_filtered_branch_taken.append(nx_node)
-    
-    graph = nx.DiGraph()
-    for i in range(len(second_filtered_branch_taken)-1):
-        src = second_filtered_branch_taken[i]
-        dst = second_filtered_branch_taken[i+1]
-        print(f'{src}->{dst}')
-        if src != dst:
-            graph.add_edge(src, dst)
-
-        
-        
-    write_dot(graph, f"{so_name}-{thread_id}.dot")    
-    
-
-
 
 def identify_false_positives(address_to_node, branch_taken):
     identified_false_positives = set()
@@ -257,7 +168,6 @@ def identify_false_negatives(address_to_node, branch_taken):
     fns = set()
     for i, b in enumerate(branch_taken):
         node = address_to_node[b]
-        # if node and node.so_name == "/usr/lib/x86_64-linux-gnu/ld-2.31.so" and node.address == 0x11b98:
         if node and node.so_name == "/usr/lib/x86_64-linux-gnu/ld-linux-x86-64.so.2" and node.address == 0x56d5:
             fb = branch_taken[i+2]
             fn_node = address_to_node[fb]
@@ -390,7 +300,6 @@ if __name__ == "__main__":
                 branch_taken = remove_duplicate_branch_taken(branch_taken)
                 entry_node, addr_to_node, edges = create_cfg(
                     branch_taken, process_memory, tid)
-                # create_cfg_partial(branch_taken, process_memory, tid, 'liblzma')
                 fps = identify_false_positives(addr_to_node, branch_taken)
                 all_fps.extend(fps)
                 fns = identify_false_negatives(addr_to_node, branch_taken)

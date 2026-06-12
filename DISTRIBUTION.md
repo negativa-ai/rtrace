@@ -54,24 +54,23 @@ Python dependencies.
 | Native tracer (DynamoRIO + `librtrace.so`) | yes | yes |
 | Boundary detection: linear + nucleus + FunSeeker(.NET) | yes | yes |
 | Python base: pyelftools, pandas, srutils | yes | yes |
-| **angr + capstone + networkx** (mode-0 prototype/CFG analysis) | no | yes |
+| **angr + capstone** (mode-0 prototype/CFG analysis) | no | yes |
 | `--mode 0` | error → "install rtrace-heavy" | works |
 
-The only weight difference is **angr** (with z3/unicorn/pyvex/claripy); capstone and
-networkx are small tag-alongs that are also only needed in mode 0.
+The only weight difference is **angr** (with z3/unicorn/pyvex/claripy); capstone is
+a small tag-along that is also only needed in mode 0.
 
 Mode gating evidence:
 - `angr`: `_set_function_prototype`, gated by `analyze_function_prototypes=(mode==0)`.
 - `capstone`: `Library.decode()`, only called `if mode==0`.
-- `networkx`: `create_cfg`, only in the `if mode==0` block of `postprocess`.
 
 ## Phased plan
 
 ### Phase 1 — Refactor + packaging (foundation) — IN PROGRESS
 1. `pyproject.toml` with the `rtrace` package + `rtrace` console-script entry point.
 2. **Lazy-import** the heavy deps so the light install does not require them:
-   `angr`, `capstone`, `networkx`/`write_dot` (and `nucleus`, which ships in both).
-3. Dependency extras: base = light; `[heavy]` extra = `angr, capstone, networkx`.
+   `angr`, `capstone` (and `nucleus`, which ships in both).
+3. Dependency extras: base = light; `[heavy]` extra = `angr, capstone`.
 4. `--mode 0` guard in the light edition with a clear "install rtrace-heavy" message.
 5. `RTRACE_HOME`-relative path resolution (removes the hardcoded `/home/ubuntu/...`
    paths and the conda shebangs).
