@@ -47,6 +47,9 @@ package-dir = {"" = "src"}
 where = ["src"]
 include = ["rtrace*"]
 
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
 [tool.ruff]
 target-version = "py39"
 line-length = 100
