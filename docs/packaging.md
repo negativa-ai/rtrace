@@ -10,8 +10,8 @@ Two self-contained tarballs, both Linux / x86-64:
 
 | Tarball | Edition | Modes | Extra deps | ~Size |
 |---|---|---|---|---|
-| `rtrace-light-linux-x64.tar.gz` | light | 1 | — | 120 MB |
-| `rtrace-heavy-linux-x64.tar.gz` | heavy | 0 + 1 | angr, capstone | 250 MB |
+| `rtrace-light-linux-x64.tar.gz` | light | light | — | 120 MB |
+| `rtrace-heavy-linux-x64.tar.gz` | heavy | light + rich | angr, capstone | 250 MB |
 
 Each unpacks to an `rtrace/` directory (the `RTRACE_HOME` bundle):
 
@@ -61,11 +61,11 @@ components we compile set it.
 A `smoke-test` job then installs each tarball on a **clean** `ubuntu:22.04`
 container — the oldest supported distro, so it also guards the glibc floor —
 (no build tools, no libicu, no binutils) and proves it is genuinely
-self-contained: a real `--mode 1` trace of `/bin/ls` (exercising drrun,
+self-contained: a real `--mode light` trace of `/bin/ls` (exercising drrun,
 librtrace.so, postprocessing, and FunSeeker boundary detection on the stripped
 CET system libraries), a nucleus boundary-detection call, heavy-edition imports
-(`angr`/`capstone`), and the light edition's `--mode 0` refusal.
-A full mode-0 run is deliberately excluded: it runs angr prototype analysis
+(`angr`/`capstone`), and the light edition's `--mode rich` refusal.
+A full rich-mode run is deliberately excluded: it runs angr prototype analysis
 over every loaded module (libc included), far too slow for CI.
 
 ## Releases

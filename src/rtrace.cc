@@ -35,7 +35,7 @@ static void *stats_mutex;                               /* for multithread suppo
 
 static droption_t<int>
     MODE(DROPTION_SCOPE_CLIENT, "mode", 0, "Working mode",
-         "0 for heavy mode, 1 for light mode. 2 for light mode with removal");
+         "0 for rich mode (full prototype analysis), 1 for light mode");
 
 static droption_t<std::string>
     LOG_DIR(DROPTION_SCOPE_CLIENT, "log_dir", "./", "Output of tracing logs",
@@ -45,13 +45,8 @@ static droption_t<std::string>
     so_name(DROPTION_SCOPE_CLIENT, "so_name", "", "Target so name",
             "Empty string means all shared libraries will be traced");
 
-static droption_t<int>
-    REMOVE(DROPTION_SCOPE_CLIENT, "remove", 0, "Removed component",
-           "0 for removing nothing; 1 for removing branch trap; 2 for removing return trap ");
-
 static int tls_idx;
 static std::string log_dir_str;
-static int remove_value;
 
 typedef struct
 {
@@ -345,48 +340,6 @@ event_app_instruction_lightweight(void *drcontext, void *tag, instrlist_t *bb, i
     return DR_EMIT_DEFAULT;
 }
 
-static dr_emit_flags_t
-event_app_instruction_lightweight_removal(void *drcontext, void *tag, instrlist_t *bb, instr_t *inst,
-                                          bool for_trace, bool translating, void *user_data)
-{
-    if (!instr_is_app(inst))
-        return DR_EMIT_DEFAULT;
-
-    app_pc pc = instr_get_app_pc(inst);
-    uint64_t pc_addr = (uint64_t)(uintptr_t)pc;
-
-    if (!instr_is_cti(inst))
-    {
-        return DR_EMIT_DEFAULT;
-    }
-    // only branch or return instructions will go into here
-    switch (remove_value)
-    {
-    case 1:
-        // remove branch traps
-        if (instr_is_call(inst) || instr_is_cbr(inst) || instr_is_ubr(inst))
-        {
-            return DR_EMIT_DEFAULT;
-        }
-        break;
-    case 2:
-        // remove return traps
-        if (instr_is_return(inst))
-        {
-            return DR_EMIT_DEFAULT;
-        }
-        break;
-    default:
-        break;
-    }
-
-    drmgr_disable_auto_predication(drcontext, bb);
-    log_file_t *log_file = (log_file_t *)(ptr_uint_t)drmgr_get_tls_field(drcontext, tls_idx);
-    write_to_file(log_file->executed_instrumentations_f, std::to_string(pc_addr) + "\n");
-
-    return DR_EMIT_DEFAULT;
-}
-
 static void
 flush_and_close_log_files(void *drcontext)
 {
@@ -474,8 +427,7 @@ dr_client_main(client_id_t id, int argc, const char *argv[])
 
     stats_mutex = dr_mutex_create();
     log_dir_str = LOG_DIR.get_value();
-    remove_value = REMOVE.get_value();
-    dr_fprintf(STDERR, "mode: %d, remove: %d \n", mode, remove_value);
+    dr_fprintf(STDERR, "mode: %d\n", mode);
     std::filesystem::path log_dir_path(log_dir_str);
     if (log_dir_path.is_relative())
     {
@@ -495,11 +447,6 @@ dr_client_main(client_id_t id, int argc, const char *argv[])
     {
         DR_ASSERT(drmgr_register_bb_instrumentation_event(event_bb_analysis, event_app_instruction, NULL));
         DR_ASSERT(drmgr_register_module_load_event(event_module_load));
-    }
-    else if (mode == 2)
-    {
-        DR_ASSERT(drmgr_register_bb_instrumentation_event(NULL, event_app_instruction_lightweight_removal, NULL));
-        DR_ASSERT(drmgr_register_module_load_event(event_module_load_light));
     }
     else
     {

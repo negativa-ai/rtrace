@@ -5,7 +5,7 @@ import sys
 from srutils import shell_system
 
 from . import paths
-from .edition import require_mode_supported
+from .edition import MODE_NAMES, require_mode_supported
 
 logger = logging.getLogger(__name__)
 
@@ -17,18 +17,23 @@ def main():
     parser = argparse.ArgumentParser(prog="rtrace")
     parser.add_argument("--logdir", type=str, help="Directory to store output files")
     parser.add_argument("cmd", nargs="*", help="Command to run")
-    parser.add_argument("--filter", action="store_true")
     parser.add_argument("--calllog", action="store_true")
     parser.add_argument(
-        "--mode", type=int, default=0, choices=[0, 1], help="0 for rich mode, 1 for light mode"
+        "--mode",
+        choices=list(MODE_NAMES),
+        default="rich",
+        help="rich for full prototype analysis, light for lightweight tracing",
     )
     parser.add_argument(
         "--so_name", type=str, default=None, help="Shared object name to filter the calllog."
     )
     args = parser.parse_args()
 
-    # Light edition supports mode 1 only; fail early with guidance.
-    require_mode_supported(args.mode)
+    # The native client takes an integer mode; resolve the human-readable name once.
+    mode = MODE_NAMES[args.mode]
+
+    # Light edition supports light mode only; fail early with guidance.
+    require_mode_supported(mode)
 
     log_dir = args.logdir
     cmd = " ".join(args.cmd)
@@ -38,7 +43,7 @@ def main():
     # variants on every run otherwise.
     trace_cmd = (
         f"{paths.drrun()} -quiet -c {paths.librtrace_so()} "
-        f"--log_dir {log_dir} --mode {args.mode} -- {cmd}"
+        f"--log_dir {log_dir} --mode {mode} -- {cmd}"
     )
     retcode = shell_system(trace_cmd)
     logger.info("Trace command executed: %s", trace_cmd)
@@ -49,8 +54,6 @@ def main():
     )
     if args.so_name is not None:
         post_process_cmd += f" --so_names {args.so_name}"
-    if args.filter:
-        post_process_cmd += " --filter"
     if args.calllog:
         post_process_cmd += " --calllog"
     shell_system(post_process_cmd)

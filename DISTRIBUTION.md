@@ -10,7 +10,7 @@ signed — not a developer build.
 - **Native install, no Docker.** Self-contained tarball on GitHub Releases,
   fetched and verified by a `curl | sh` installer (the same pattern as `uv`,
   `rustup`, `deno`).
-- **Two editions** (see below): `light` (mode 1 only) and `heavy` (modes 0 + 1).
+- **Two editions** (see below): `light` (light mode only) and `heavy` (light + rich modes).
 - **Linux / x86-64 only** for v1 (matches the current dev environment). Built on
   an old-glibc base (manylinux_2_28 / Ubuntu 20.04) for broad portability.
 
@@ -50,19 +50,19 @@ Python dependencies.
 
 | | `rtrace-light` | `rtrace-heavy` |
 |---|---|---|
-| Modes | 1 only | 0 + 1 |
+| Modes | light only | light + rich |
 | Native tracer (DynamoRIO + `librtrace.so`) | yes | yes |
 | Boundary detection: linear + nucleus + FunSeeker(.NET) | yes | yes |
 | Python base: pyelftools, pandas, srutils | yes | yes |
-| **angr + capstone** (mode-0 prototype/CFG analysis) | no | yes |
-| `--mode 0` | error → "install rtrace-heavy" | works |
+| **angr + capstone** (rich-mode prototype analysis) | no | yes |
+| `--mode rich` | error → "install rtrace-heavy" | works |
 
 The only weight difference is **angr** (with z3/unicorn/pyvex/claripy); capstone is
-a small tag-along that is also only needed in mode 0.
+a small tag-along that is also only needed in rich mode.
 
 Mode gating evidence:
-- `angr`: `_set_function_prototype`, gated by `analyze_function_prototypes=(mode==0)`.
-- `capstone`: `Library.decode()`, only called `if mode==0`.
+- `angr`: `_set_function_prototype`, gated by `analyze_function_prototypes=(mode==MODE_RICH)`.
+- `capstone`: `Library.decode()`, only called in rich mode.
 
 ## Phased plan
 
@@ -71,10 +71,10 @@ Mode gating evidence:
 2. **Lazy-import** the heavy deps so the light install does not require them:
    `angr`, `capstone` (and `nucleus`, which ships in both).
 3. Dependency extras: base = light; `[heavy]` extra = `angr, capstone`.
-4. `--mode 0` guard in the light edition with a clear "install rtrace-heavy" message.
+4. `--mode rich` guard in the light edition with a clear "install rtrace-heavy" message.
 5. `RTRACE_HOME`-relative path resolution (removes the hardcoded `/home/ubuntu/...`
    paths and the conda shebangs).
-- **Checkpoint:** light traces mode 1 and heavy traces mode 0, locally.
+- **Checkpoint:** light traces light mode and heavy traces rich mode, locally.
 
 ### Phase 2 — CI artifact build (one shared native tree)
 Build `librtrace.so` + DynamoRIO runtime, nucleus (+ bundled libcapstone), and

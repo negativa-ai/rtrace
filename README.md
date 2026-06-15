@@ -18,8 +18,8 @@ needed on your machine:
 
 | Edition | Modes | Tarball |
 |---|---|---|
-| **light** | `--mode 1` | `rtrace-light-linux-x64.tar.gz` (~120 MB) |
-| **heavy** | `--mode 0` and `--mode 1` | `rtrace-heavy-linux-x64.tar.gz` (~250 MB) |
+| **light** | `--mode light` | `rtrace-light-linux-x64.tar.gz` (~120 MB) |
+| **heavy** | `--mode light` and `--mode rich` | `rtrace-heavy-linux-x64.tar.gz` (~250 MB) |
 
 The installer takes `--edition light|heavy` (default `light`), `--version vX.Y.Z`
 (default latest), `--prefix` / `--bin-dir` to relocate, and `--uninstall`:
@@ -61,11 +61,11 @@ components fail with `GLIBC_X.YY not found` errors — there,
 ## Usage
 
 ```sh
-rtrace --logdir ./trace-out --mode 1 -- your_program --its --args
+rtrace --logdir ./trace-out --mode light -- your_program --its --args
 ```
 
-- `--mode 1` (light): records which library functions were executed.
-- `--mode 0` (heavy edition only): rich mode — additionally reconstructs the
+- `--mode light`: records which library functions were executed.
+- `--mode rich` (heavy edition only): additionally reconstructs the
   call graph and analyzes function prototypes.
 
 Detected function calls are written to `function-executed-<pid>-<tid>.json`
@@ -108,7 +108,7 @@ Pass `--edition heavy` to `build-bundle.sh` for the heavy edition. See
 ```bash
 LOG_DIR=/path/to/tracing/results
 CMD=the_workload_cmd
-MODE=1 # 0 for rich mode, 1 for light mode
+MODE=light # rich for full prototype analysis, light for lightweight tracing
 python /home/ubuntu/repos/rtrace/src/rtrace/main.py --logdir $LOG_DIR --mode $MODE -- $CMD
 ```
 3. All detected function calls are recorded in files named `function-executed-xxx-xxxx.json` under `LOG_DIR`.

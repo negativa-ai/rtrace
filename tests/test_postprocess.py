@@ -1,24 +1,4 @@
-from rtrace.postprocess import get_pid_tid, remove_duplicate_branch_taken
-
-
-class TestRemoveDuplicateBranchTaken:
-    def test_empty_list(self):
-        assert remove_duplicate_branch_taken([]) == []
-
-    def test_single_element(self):
-        assert remove_duplicate_branch_taken([0x1]) == [0x1]
-
-    def test_no_duplicates(self):
-        assert remove_duplicate_branch_taken([0x1, 0x2, 0x3]) == [0x1, 0x2, 0x3]
-
-    def test_consecutive_duplicates_removed(self):
-        assert remove_duplicate_branch_taken([0x1, 0x2, 0x2, 0x3]) == [0x1, 0x2, 0x3]
-
-    def test_runs_collapse_to_one(self):
-        assert remove_duplicate_branch_taken([0x1, 0x1, 0x1, 0x2, 0x2]) == [0x1, 0x2]
-
-    def test_non_consecutive_duplicates_preserved(self):
-        assert remove_duplicate_branch_taken([0x1, 0x2, 0x1]) == [0x1, 0x2, 0x1]
+from rtrace.postprocess import get_pid_tid
 
 
 class TestGetPidTid:

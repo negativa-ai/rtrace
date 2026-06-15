@@ -79,27 +79,6 @@ class Instruction(object):
         else:
             return False
 
-    def is_potential_indirect_return_endbr(self):
-        if not self.is_endbr():
-            return False
-        if self.prev is None:
-            return False
-        # call/jmp, then endbr
-        if self.prev.is_jmp() or self.prev.is_call():
-            return True
-
-        return False
-
-    def get_potential_leading_call(self):
-        if not self.is_potential_indirect_return_endbr():
-            raise RuntimeError("Instruction is not a potential indirect return endbr")
-
-        # call/jmp, then endbr
-        if self.prev.is_jmp() or self.prev.is_call():
-            return self.prev
-        else:
-            return self.prev.prev
-
 
 class Function(object):
     def __init__(self, start, end, name, so_path):
@@ -290,7 +269,7 @@ class Library(object):
             f.name = func_start_to_name[start][0]
 
     def _set_function_prototype(self):
-        # angr is a heavy-edition (mode 0) dependency; import lazily.
+        # angr is a heavy-edition (rich mode) dependency; import lazily.
         import angr
 
         logger.info("Analyzing function prototypes in %s", self.so_path)
@@ -447,50 +426,6 @@ class Library(object):
         if index == -1:
             return None
         return self._functions[index]
-
-    def remove_function_at_address(self, address):
-        # get index of the function
-        index = self._get_function_ind_at_address(address)
-        if index == -1:
-            return False
-        # remove the function
-        if self._functions[index].start != address:
-            logger.warning("Cannot remove function at address %#x in %s", address, self.so_path)
-            return False
-        if index == 0:
-            self._functions[1].start = self._functions[0].start
-            self._functions.pop(0)
-        else:
-            self._functions[index - 1].end = self._functions[index].end
-            self._functions.pop(index)
-        return True
-
-    def insert_function_at_address(self, address):
-        # Check if the address is already a function start
-        if self.is_function_start(address):
-            logger.warning("Function already exists at address %#x in %s", address, self.so_path)
-            return False
-
-        index = self._get_function_ind_at_address(address)
-        if index == -1:
-            if address < self._functions[0].start:
-                # Insert at the beginning
-                end = self._functions[0].start
-                self._functions.insert(0, Function(address, end, "post_detected", self.so_path))
-                return True
-            else:
-                raise ValueError(
-                    f"Cannot insert function at address {address:#x} in "
-                    f"{self.so_path}: no suitable position found."
-                )
-        else:
-            # insert within the existing function range
-            inserted_func = Function(
-                address, self._functions[index].end, "post_detected", self.so_path
-            )
-            self._functions[index].end = address
-            self._functions.insert(index + 1, inserted_func)
-            return True
 
     def is_function_start(self, address):
         index = self._get_function_ind_at_address(address)
