@@ -44,22 +44,6 @@ class Module(object):
         addr_in_module = address - self.start
         return self.lib.get_function_at_address(addr_in_module)
 
-    def remove_function_at_address(self, address, is_relative_addr=True):
-        """Remove function at a specific address within the module."""
-        if is_relative_addr:
-            addr_in_module = address
-        else:
-            addr_in_module = address - self.start
-        return self.lib.remove_function_at_address(addr_in_module)
-
-    def insert_function_at_address(self, address, is_relative_addr=True):
-        """Insert function at a specific address within the module."""
-        if is_relative_addr:
-            addr_in_module = address
-        else:
-            addr_in_module = address - self.start
-        return self.lib.insert_function_at_address(addr_in_module)
-
     def is_function_start(self, address, is_relative_addr=True):
         """Check if the address is the start of a function within the module."""
         if is_relative_addr:

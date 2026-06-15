@@ -103,11 +103,11 @@ jobs:
           ln -s /opt/rtrace/bin/rtrace /usr/local/bin/rtrace
           test "$(cat /opt/rtrace/EDITION)" = "${{ matrix.edition }}"
 
-      - name: Trace /bin/ls (mode 1)
+      - name: Trace /bin/ls (light mode)
         run: |
           set -eux
           mkdir /tmp/smoke
-          rtrace --logdir /tmp/smoke --mode 1 -- /bin/ls /
+          rtrace --logdir /tmp/smoke --mode light -- /bin/ls /
           # the coverage report must exist and attribute functions to modules
           /opt/rtrace/python/bin/python3 - <<'EOF'
           import glob, json
@@ -136,9 +136,9 @@ jobs:
           if [ "${{ matrix.edition }}" = "heavy" ]; then
             /opt/rtrace/python/bin/python3 -c "import angr, capstone; print('OK: heavy deps import')"
           else
-            # light must refuse mode 0 with a clear error instead of crashing later
-            if rtrace --logdir /tmp/refused --mode 0 -- /bin/true; then
-              echo "light edition accepted mode 0; it must refuse" >&2
+            # light must refuse rich mode with a clear error instead of crashing later
+            if rtrace --logdir /tmp/refused --mode rich -- /bin/true; then
+              echo "light edition accepted rich mode; it must refuse" >&2
               exit 1
             fi
           fi
@@ -168,8 +168,8 @@ jobs:
 
           | File | Edition | Modes |
           |---|---|---|
-          | \`rtrace-light-linux-x64.tar.gz\` | light | 1 |
-          | \`rtrace-heavy-linux-x64.tar.gz\` | heavy | 0 + 1 |
+          | \`rtrace-light-linux-x64.tar.gz\` | light | light |
+          | \`rtrace-heavy-linux-x64.tar.gz\` | heavy | light + rich |
 
           ## Verify your download
 
