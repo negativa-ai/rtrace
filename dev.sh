@@ -52,14 +52,6 @@ docker exec -i $devname bash <<EOF
 /home/ubuntu/miniconda3/envs/rtrace/bin/python -m pip install -r requirements.txt
 EOF
 
-echo ============= Building sr-utils ==============
-docker exec -i $devname bash <<EOF
-cd submodules/
-cd sr-utils 
-/home/ubuntu/miniconda3/envs/rtrace/bin/python -m pip install .
-EOF
-
-
 # build capstone
 echo ============== Building Capstone ==============
 docker exec -i $devname bash <<EOF

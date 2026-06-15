@@ -29,7 +29,7 @@ Traced from the runtime path (`main.py` → `drrun -c librtrace.so` → `postpro
 
 **Bundled (required):**
 - DynamoRIO runtime + `librtrace.so` + extensions (drmgr/drreg/drx/drwrap/drcontainers)
-- Python: pyelftools, pandas, srutils (sr-utils)
+- Python: pyelftools, pandas
 - Boundary-detection backends: `nucleus` (native) + `FunSeeker` (.NET, self-contained publish)
 
 **Dropped (never invoked at runtime):**
@@ -53,7 +53,7 @@ Python dependencies.
 | Modes | light only | light + rich |
 | Native tracer (DynamoRIO + `librtrace.so`) | yes | yes |
 | Boundary detection: linear + nucleus + FunSeeker(.NET) | yes | yes |
-| Python base: pyelftools, pandas, srutils | yes | yes |
+| Python base: pyelftools, pandas | yes | yes |
 | **angr + capstone** (rich-mode prototype analysis) | no | yes |
 | `--mode rich` | error → "install rtrace-heavy" | works |
 

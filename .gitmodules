@@ -7,9 +7,6 @@
 [submodule "submodules/capstone"]
 	path = submodules/capstone
 	url = https://github.com/capstone-engine/capstone.git
-[submodule "submodules/sr-utils"]
-	path = submodules/sr-utils
-	url = https://github.com/jzh18/sr-utils.git
 [submodule "submodules/FunSeeker"]
 	path = submodules/FunSeeker
 	url = https://github.com/jzh18/FunSeeker.git

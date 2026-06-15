@@ -24,15 +24,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      # srutils is imported transitively (library.py -> boundary_detection.py)
-      # and lives in the sr-utils submodule, not on PyPI. Fetch only that
-      # submodule; the rest (dynamorio, capstone, ...) are huge native trees.
-      - name: Fetch sr-utils submodule
-        run: git submodule update --init submodules/sr-utils
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
       - name: Install package and test dependencies
-        run: pip install -e . ./submodules/sr-utils pytest
+        run: pip install -e . pytest
       - name: Run tests
         run: pytest

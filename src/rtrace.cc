@@ -5,6 +5,8 @@
 #include <unordered_set>
 #include <filesystem>
 #include <iostream>
+#include <unistd.h>    /* fork, execvp, _exit */
+#include <sys/wait.h>  /* waitpid */
 #include "dr_api.h"
 #include "drmgr.h"
 #include "drreg.h"
@@ -27,8 +29,6 @@ using ::dynamorio::droption::droption_t;
 // trap_address: trap_info_t
 static std::unordered_map<uint64_t, function_info_t> addr_to_func_info_map;
 
-static const std::string INTERMEDIATE_DIR = "/home/ubuntu/repos/rtrace/experiments/cache/";
-
 static std::unordered_set<std::string> analyzed_sos;
 static std::unordered_set<uint64_t> instrumented_addrs; // fixme: multithread support
 static void *stats_mutex;                               /* for multithread support */
@@ -45,8 +45,21 @@ static droption_t<std::string>
     so_name(DROPTION_SCOPE_CLIENT, "so_name", "", "Target so name",
             "Empty string means all shared libraries will be traced");
 
+// Rich mode recovers function boundaries by running `python -m rtrace.preprocess`
+// for each module. The launcher (main.py) passes the interpreter and the cache
+// directory so nothing here is hardcoded to a developer's machine.
+static droption_t<std::string>
+    CACHE_DIR(DROPTION_SCOPE_CLIENT, "cache_dir", "./.rtrace-cache",
+              "Boundary-detection cache directory",
+              "Directory for cached per-module boundary-detection (.info) files");
+
+static droption_t<std::string>
+    PYTHON(DROPTION_SCOPE_CLIENT, "python", "python3", "Python interpreter",
+           "Interpreter used to run `-m rtrace.preprocess` for rich-mode boundary detection");
+
 static int tls_idx;
 static std::string log_dir_str;
+static std::string cache_dir_str;
 
 typedef struct
 {
@@ -122,6 +135,38 @@ wrap_post(void *wrapcxt, void *user_data)
     write_to_file(log_file->func_args_ret_f, content);
 }
 
+// Recover a module's function boundaries by running
+//   <python> -m rtrace.preprocess --so_path <so_path> --output <cache_dir>
+// via fork + execvp (no shell), so module paths containing spaces or shell
+// metacharacters cannot be misinterpreted or injected. The interpreter and the
+// cache directory come from droptions set by the launcher (main.py).
+static void
+run_preprocess(const std::string &so_path)
+{
+    const std::string python = PYTHON.get_value();
+    pid_t pid = fork();
+    if (pid < 0)
+    {
+        dr_fprintf(STDERR, "rtrace: fork() failed for preprocess of %s\n", so_path.c_str());
+        return;
+    }
+    if (pid == 0)
+    {
+        const char *argv[] = {python.c_str(), "-m", "rtrace.preprocess",
+                              "--so_path", so_path.c_str(),
+                              "--output", cache_dir_str.c_str(), nullptr};
+        execvp(python.c_str(), const_cast<char *const *>(argv));
+        // execvp returns only on failure.
+        _exit(127);
+    }
+    int status = 0;
+    waitpid(pid, &status, 0);
+    if (status != 0)
+    {
+        dr_fprintf(STDERR, "rtrace: preprocess failed (status %d) for %s\n", status, so_path.c_str());
+    }
+}
+
 static void
 event_module_load(void *drcontext, const module_data_t *info, bool loaded)
 {
@@ -143,14 +188,15 @@ event_module_load(void *drcontext, const module_data_t *info, bool loaded)
     if (analyzed_sos.find(info->full_path) != analyzed_sos.end())
     {
         dr_fprintf(STDERR, "Module %s already analyzed, skipping.\n", info->full_path);
+        dr_mutex_unlock(stats_mutex);
         return;
     }
-    const std::string boundary_detection_filename = INTERMEDIATE_DIR + "/" + std::string{info->names.file_name} + ".info";
+    const std::string boundary_detection_filename = cache_dir_str + "/" + std::string{info->names.file_name} + ".info";
     dr_fprintf(STDERR, "Analyzing module %s at base address %p\n",
                info->full_path, (void *)start_addr);
     if (!file_exists(boundary_detection_filename.c_str()))
     {
-        system(("/home/ubuntu/repos/rtrace/src/python/preprocess.py --so_path " + std::string{info->full_path} + " --output " + INTERMEDIATE_DIR).c_str());
+        run_preprocess(info->full_path);
     }
 
     std::string content = std::string{info->full_path} + ":" + std::to_string(start_addr) + ":" + std::to_string(end_addr) + "\n";
@@ -427,6 +473,7 @@ dr_client_main(client_id_t id, int argc, const char *argv[])
 
     stats_mutex = dr_mutex_create();
     log_dir_str = LOG_DIR.get_value();
+    cache_dir_str = CACHE_DIR.get_value();
     dr_fprintf(STDERR, "mode: %d\n", mode);
     std::filesystem::path log_dir_path(log_dir_str);
     if (log_dir_path.is_relative())
@@ -437,6 +484,11 @@ dr_client_main(client_id_t id, int argc, const char *argv[])
     if (!std::filesystem::exists(log_dir_path))
     {
         std::filesystem::create_directories(log_dir_path);
+    }
+    // Rich mode caches per-module boundary-detection (.info) files here.
+    if (mode == 0 && !std::filesystem::exists(cache_dir_str))
+    {
+        std::filesystem::create_directories(cache_dir_str);
     }
 
     /* Register opcode event. */
