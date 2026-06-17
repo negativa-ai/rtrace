@@ -56,15 +56,6 @@ def get_executed_instrumentations(pid, tid, input_dir):
         return executed_insns
 
 
-def get_func_arg_ret(pid, tid, input_dir):
-    file_path = f"{input_dir}/rtrace-intermediate-{pid}-{tid}-func_args_ret.log"
-    with open(file_path, "r") as f:
-        func_args_ret = []
-        for line in f:
-            func_args_ret.append(line.strip())
-    return func_args_ret
-
-
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
     parser = argparse.ArgumentParser(description="Postprocess script for rtrace.")
