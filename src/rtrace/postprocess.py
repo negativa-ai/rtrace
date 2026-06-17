@@ -113,7 +113,6 @@ if __name__ == "__main__":
             pid,
             tids,
             input_dir,
-            mode=mode,
             bd_algo=bd_algo,
             bd_cache_dir=bd_cache_dir,
             analyze_function_prototypes=(mode == MODE_RICH),

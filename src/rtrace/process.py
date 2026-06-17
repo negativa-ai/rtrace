@@ -14,7 +14,6 @@ class Module(object):
         path,
         start,
         end,
-        mode=0,
         bd_algo=None,
         bd_cache_dir=None,
         analyze_function_prototypes=False,
@@ -28,16 +27,9 @@ class Module(object):
             func_info_dir=bd_cache_dir,
             analyze_function_prototypes=analyze_function_prototypes,
         )
-        if mode == 0:
-            self.lib.decode()
 
     def is_in(self, addr):
         return self.start <= addr < self.end
-
-    def get_instruction_at_address(self, address):
-        """Get instruction at a specific address within the module."""
-        addr_in_module = address - self.start
-        return self.lib.get_instruction_at_address(addr_in_module)
 
     def get_function_at_address(self, address):
         """Get function at a specific address within the module."""
@@ -67,7 +59,7 @@ def deduplicate_modules(modules):
 
 
 def get_loaded_module(
-    pid, tids, input_dir, mode=0, bd_algo=None, bd_cache_dir=None, analyze_function_prototypes=False
+    pid, tids, input_dir, bd_algo=None, bd_cache_dir=None, analyze_function_prototypes=False
 ):
     # first try to read the corresponding pid-tid file,
     # if it is empty, try to read another pid-tid' file
@@ -96,7 +88,6 @@ def get_loaded_module(
                         so_path,
                         start,
                         end,
-                        mode=mode,
                         bd_algo=bd_algo,
                         bd_cache_dir=bd_cache_dir,
                         analyze_function_prototypes=analyze_function_prototypes,
@@ -133,7 +124,6 @@ class ProcessMemory(object):
         pid,
         tids,
         log_dir,
-        mode=0,
         bd_algo=None,
         bd_cache_dir=None,
         analyze_function_prototypes=False,
@@ -145,7 +135,6 @@ class ProcessMemory(object):
             pid,
             tids,
             log_dir,
-            mode=mode,
             bd_algo=bd_algo,
             bd_cache_dir=bd_cache_dir,
             analyze_function_prototypes=analyze_function_prototypes,

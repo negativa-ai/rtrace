@@ -6,78 +6,14 @@ import struct
 from elftools.elf.elffile import ELFFile, SymbolTableSection
 
 from . import paths
-
-# capstone is a heavy-edition (mode 0) dependency. It is only referenced by the
-# Instruction class methods, which run exclusively in mode 0, so guard the import
-# to let the light edition load this module without capstone installed.
-try:
-    from capstone import CS_GRP_CALL, CS_GRP_JUMP, CS_GRP_RET
-    from capstone.x86_const import (
-        X86_INS_ENDBR32,
-        X86_INS_ENDBR64,
-        X86_INS_NOP,
-        X86_OP_MEM,
-        X86_OP_REG,
-    )
-except ImportError:
-    pass
-
 from .boundary_detection import (
     boundary_detection_funseeker,
     boundary_detection_linear,
     boundary_detection_nucleus,
 )
-from .disassembler import disassemble_data
 from .utils import is_func_symbol
 
 logger = logging.getLogger(__name__)
-
-
-class Instruction(object):
-    def __init__(self, insn, section_name=None, next=None, so_path=None):
-        self.insn = insn  # original instruction object from capstone
-        self.section_name = section_name
-        self.address = insn.address
-        self.next = next
-        self.prev = None
-        self.so_path = so_path  # path to the shared object file, if applicable
-
-    def __repr__(self):
-        return (
-            f"{self.so_path}:{self.section_name}:{hex(self.address)} "
-            f"{self.insn.mnemonic} {self.insn.op_str}"
-        )
-
-    def is_endbr(self):
-        return self.insn.id in (X86_INS_ENDBR64, X86_INS_ENDBR32)
-
-    def is_call(self):
-        return CS_GRP_CALL in self.insn.groups
-
-    def is_jmp(self):
-        return CS_GRP_JUMP in self.insn.groups
-
-    def is_nop(self):
-        return self.insn.id == X86_INS_NOP
-
-    def is_ret(self):
-        return CS_GRP_RET in self.insn.groups
-
-    def is_indirect_call(self):
-        is_call = CS_GRP_CALL in self.insn.groups
-        if is_call:
-            op = self.insn.operands[0]
-            return op.type in (X86_OP_MEM, X86_OP_REG)
-        else:
-            return False
-
-    def is_indirect_jmp(self):
-        is_jmp = CS_GRP_JUMP in self.insn.groups
-        if is_jmp:
-            op = self.insn.operands[0]
-            return op.type in (X86_OP_MEM, X86_OP_REG)
-        else:
-            return False
 
 
 class Function(object):
@@ -109,8 +45,6 @@ class Library(object):
         # open for the lifetime of the Library; call close() when done.
         self._file = open(so_path, "rb")
         self._elffile = ELFFile(self._file)
-        self._instructions = []
-        self._addr_to_instruction = {}
         self._functions = []
         self.boundary_detection_method = boundary_detection_method
         self.debug_sym_file = debug_sym_file
@@ -154,13 +88,6 @@ class Library(object):
     def close(self):
         """Close the underlying ELF file handle."""
         self._file.close()
-
-    def _list_executable_sections(self):
-        sections = []
-        for section in self._elffile.iter_sections():
-            if section["sh_flags"] & 0x4:
-                sections.append(section.name)
-        return sections
 
     def _has_symtab(self):
         return self._elffile.get_section_by_name(".symtab") is not None
@@ -346,64 +273,6 @@ class Library(object):
         self._functions.sort(key=lambda f: f.start)
         for f in self._functions:
             self._addr_to_function[f.start] = f
-
-    def decode(self):
-        executable_sections = self._list_executable_sections()
-        for section_name in executable_sections:
-            section_data = self._elffile.get_section_by_name(section_name).data()
-            section_base_address = self._elffile.get_section_by_name(section_name)["sh_addr"]
-            instructions = disassemble_data(section_data, section_base_address)
-            prev_insn = None
-            for insn in instructions:
-                instruction = Instruction(insn, section_name, so_path=self.so_path)
-                instruction.prev = prev_insn
-                self._instructions.append(instruction)
-                self._addr_to_instruction[insn.address] = instruction
-                if prev_insn is not None:
-                    prev_insn.next = instruction
-                prev_insn = instruction
-
-    def dump(self, output_file=None):
-        if output_file is None:
-            output_file = os.path.basename(self.so_path) + ".disasm"
-        with open(output_file, "w") as f:
-            executable_sections = self._list_executable_sections()
-            for section_name in executable_sections:
-                f.write(f"Section: {section_name}\n")
-
-            for insn in self._instructions:
-                f.write(
-                    f"{insn.address:#x} {insn.insn.mnemonic} "
-                    f"{insn.insn.op_str} {insn.section_name}\n"
-                )
-
-    def get_instruction_at_address(self, address):
-        if address in self._addr_to_instruction:
-            return self._addr_to_instruction[address]
-        else:
-            logger.warning(
-                "Address not found in cached instructions, disassembling on-the-fly: %#x.",
-                address,
-            )
-            # find which section the address belongs to
-            for section_name in self._list_executable_sections():
-                section = self._elffile.get_section_by_name(section_name)
-                section_base_address = section["sh_addr"]
-                section_size = section["sh_size"]
-                if section_base_address <= address < section_base_address + section_size:
-                    section_data = section.data()
-                    offset_in_section = address - section_base_address
-                    if offset_in_section < len(section_data):
-                        insn = disassemble_data(
-                            section_data[offset_in_section : offset_in_section + 16],
-                            section_base_address + offset_in_section,
-                        )
-                        if insn:
-                            decoded_insn = Instruction(insn[0], section_name, so_path=self.so_path)
-                            self._addr_to_instruction[address] = decoded_insn
-                            self._instructions.append(decoded_insn)
-                            return decoded_insn
-            raise ValueError(f"Cannot find instruction at address {address:#x} in {self.so_path}")
 
     def _get_function_ind_at_address(self, address):
         # binary search for the function
