@@ -134,7 +134,7 @@ jobs:
         run: |
           set -eux
           if [ "${{ matrix.edition }}" = "heavy" ]; then
-            /opt/rtrace/python/bin/python3 -c "import angr, capstone; print('OK: heavy deps import')"
+            /opt/rtrace/python/bin/python3 -c "import angr; print('OK: heavy deps import')"
           else
             # light must refuse rich mode with a clear error instead of crashing later
             if rtrace --logdir /tmp/refused --mode rich -- /bin/true; then

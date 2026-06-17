@@ -12,7 +12,7 @@
 #
 # Editions (see DISTRIBUTION.md):
 #   light -- installs `rtrace`           (mode 1 only)
-#   heavy -- installs `rtrace[heavy]`    (modes 0 + 1; adds angr/capstone)
+#   heavy -- installs `rtrace[heavy]`    (modes 0 + 1; adds angr)
 #
 # Usage:
 #   packaging/build-bundle.sh --prefix <dir> --edition light|heavy \

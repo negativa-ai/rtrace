@@ -54,23 +54,23 @@ Python dependencies.
 | Native tracer (DynamoRIO + `librtrace.so`) | yes | yes |
 | Boundary detection: linear + nucleus + FunSeeker(.NET) | yes | yes |
 | Python base: pyelftools, pandas | yes | yes |
-| **angr + capstone** (rich-mode prototype analysis) | no | yes |
+| **angr** (rich-mode prototype analysis) | no | yes |
 | `--mode rich` | error → "install rtrace-heavy" | works |
 
-The only weight difference is **angr** (with z3/unicorn/pyvex/claripy); capstone is
-a small tag-along that is also only needed in rich mode.
+The only weight difference is **angr** (with z3/unicorn/pyvex/claripy), needed only
+in rich mode. (`libcapstone` the C library still ships in both editions — nucleus
+links it — but the Python `capstone` binding is no longer used.)
 
 Mode gating evidence:
 - `angr`: `_set_function_prototype`, gated by `analyze_function_prototypes=(mode==MODE_RICH)`.
-- `capstone`: `Library.decode()`, only called in rich mode.
 
 ## Phased plan
 
 ### Phase 1 — Refactor + packaging (foundation) — IN PROGRESS
 1. `pyproject.toml` with the `rtrace` package + `rtrace` console-script entry point.
 2. **Lazy-import** the heavy deps so the light install does not require them:
-   `angr`, `capstone` (and `nucleus`, which ships in both).
-3. Dependency extras: base = light; `[heavy]` extra = `angr, capstone`.
+   `angr` (and `nucleus`, which ships in both).
+3. Dependency extras: base = light; `[heavy]` extra = `angr`.
 4. `--mode rich` guard in the light edition with a clear "install rtrace-heavy" message.
 5. `RTRACE_HOME`-relative path resolution (removes the hardcoded `/home/ubuntu/...`
    paths and the conda shebangs).
