@@ -118,18 +118,18 @@ void read_trap_info(const char *traps_file, std::unordered_map<uint64_t, trap_in
         }
 
         uint64_t start_addr = std::stoul(parts[2], nullptr, 16) + base_addr;
-        uint8_t trap_type = TRAP_START;
+        uint8_t trap_type = RTRACE_TRAP_START;
         if (parts[4] == "start")
         {
-            trap_type = TRAP_START;
+            trap_type = RTRACE_TRAP_START;
         }
         else if (parts[4] == "branch")
         {
-            trap_type = TRAP_BRANCH;
+            trap_type = RTRACE_TRAP_BRANCH;
         }
         else if (parts[4] == "return")
         {
-            trap_type = TRAP_RETURN;
+            trap_type = RTRACE_TRAP_RETURN;
         }
         else
         {
