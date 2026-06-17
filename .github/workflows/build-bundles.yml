@@ -1,17 +1,14 @@
 name: build-bundles
 
-# Builds the light and heavy RTrace bundles
+# Builds the light and heavy RTrace bundles via the top-level Makefile (which
+# drives packaging/build-native.sh + build-bundle.sh). The bundled-Python pin
+# lives in the Makefile, the single source of truth for the build.
 # All submodules are public and cloned over https, so no secrets are required.
 
 on:
   workflow_dispatch:
   push:
     tags: ["v*"]
-
-env:
-  # Pinned relocatable interpreter (astral-sh/python-build-standalone, install_only
-  # = relocatable). Verify/update this pin when bumping the bundled Python.
-  PYTHON_BUILD_STANDALONE_URL: "https://github.com/astral-sh/python-build-standalone/releases/download/20250106/cpython-3.11.11+20250106-x86_64-unknown-linux-gnu-install_only.tar.gz"
 
 jobs:
   build:
@@ -49,26 +46,13 @@ jobs:
         with:
           submodules: recursive
 
-      - name: Build native artifacts
+      - name: Build & package ${{ matrix.edition }} bundle
         run: |
           set -eux
+          # `make tarball` runs build-native.sh + build-bundle.sh and writes
+          # rtrace-<edition>-linux-x64.tar.gz(+.sha256) to the workspace root.
           # 'sudo' is a no-op shim under the root container but build-native.sh calls it.
-          packaging/build-native.sh --prefix "$GITHUB_WORKSPACE/staging/rtrace"
-
-      - name: Assemble ${{ matrix.edition }} bundle
-        run: |
-          set -eux
-          packaging/build-bundle.sh \
-            --prefix "$GITHUB_WORKSPACE/staging/rtrace" \
-            --edition "${{ matrix.edition }}" \
-            --python-url "$PYTHON_BUILD_STANDALONE_URL"
-
-      - name: Package tarball + checksum
-        run: |
-          set -eux
-          OUT="rtrace-${{ matrix.edition }}-linux-x64.tar.gz"
-          tar -C "$GITHUB_WORKSPACE/staging" -czf "$OUT" rtrace
-          sha256sum "$OUT" > "$OUT.sha256"
+          make tarball EDITION="${{ matrix.edition }}"
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4

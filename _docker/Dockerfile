@@ -1,13 +1,16 @@
-FROM ubuntu:24.04
+FROM ubuntu:22.04
 
 ARG USER_ID
 ARG GROUP_ID
 
 RUN apt update && apt install sudo -y
 
-# existence check for user and group
-RUN getent group ${GROUP_ID} 
-RUN getent passwd ${USER_ID} 
+# Ubuntu 22.04 has no default `ubuntu` user (24.04 does), so create one matching
+# the host UID/GID passed by _docker/build.sh -- this keeps the bind-mounted repo
+# (-v $PWD:...) owned correctly. Reuse the group/user if those IDs already exist.
+RUN getent group ${GROUP_ID} || groupadd -g ${GROUP_ID} ubuntu
+RUN getent passwd ${USER_ID} || useradd -m -u ${USER_ID} -g ${GROUP_ID} -s /bin/bash ubuntu
+RUN usermod -aG sudo ubuntu
 RUN echo "%sudo ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers
 USER ubuntu
 
@@ -37,15 +40,10 @@ RUN sudo apt install ubuntu-dbgsym-keyring -y
 RUN sudo apt install debian-goodies -y
 RUN sudo apt install cmake g++ g++-multilib doxygen git zlib1g-dev libunwind-dev libsnappy-dev liblz4-dev libxxhash-dev -y
 
-# Build env for FunSeeker
-RUN wget https://packages.microsoft.com/config/ubuntu/20.04/packages-microsoft-prod.deb -O /tmp/packages-microsoft-prod.deb && \
-    sudo dpkg -i /tmp/packages-microsoft-prod.deb && \
-    rm /tmp/packages-microsoft-prod.deb
-
-RUN sudo apt-get update; \
-    sudo apt-get install -y apt-transport-https && \
-    sudo apt-get update && \
-    DEBIAN_FRONTEND=noninteractive TZ=Etc/UTC sudo apt-get install -y dotnet-sdk-6.0
+# Build env for FunSeeker. Ubuntu 22.04 ships dotnet-sdk-6.0 in its own archive,
+# so no packages.microsoft.com repo is needed (unlike 24.04, whose archive only
+# has dotnet 8). This matches the build-bundles.yml CI base image.
+RUN DEBIAN_FRONTEND=noninteractive TZ=Etc/UTC sudo apt-get install -y dotnet-sdk-6.0
 
 
 ENV DYNAMORIO_HOME=/home/ubuntu/repos/rtrace/submodules/dynamorio/build

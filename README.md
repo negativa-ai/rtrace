@@ -82,23 +82,17 @@ sudo apt-get install -y git curl ca-certificates cmake build-essential \
     g++-multilib python3 python3-dev zlib1g-dev libunwind-dev libsnappy-dev \
     liblz4-dev libxxhash-dev binutils-dev binutils-multiarch-dev dotnet-sdk-6.0
 
-git clone --recurse-submodules https://github.com/negativa-ai/rtrace.git
+git clone https://github.com/negativa-ai/rtrace.git
 cd rtrace
 
-# build the native artifacts (DynamoRIO, the tracer client, FunSeeker, ...)
-packaging/build-native.sh --prefix /tmp/staging/rtrace
-
-# assemble a relocatable bundle around them (downloads a standalone Python)
-packaging/build-bundle.sh --prefix /tmp/staging/rtrace --edition light \
-    --python-url "https://github.com/astral-sh/python-build-standalone/releases/download/20250106/cpython-3.11.11+20250106-x86_64-unknown-linux-gnu-install_only.tar.gz"
-
-# install
-mkdir -p ~/.local/share ~/.local/bin
-cp -a /tmp/staging/rtrace ~/.local/share/rtrace
-ln -sf ~/.local/share/rtrace/bin/rtrace ~/.local/bin/rtrace
+# build a relocatable bundle and install it to ~/.local/share/rtrace,
+# symlinking the `rtrace` launcher into ~/.local/bin (submodules are
+# initialized automatically on first build)
+make install
 ```
 
-Pass `--edition heavy` to `build-bundle.sh` for the heavy edition. See
+Pass `EDITION=heavy` for the heavy edition (`make EDITION=heavy install`), and
+`make help` for the other targets (`tarball`, `uninstall`, ...). See
 [docs/packaging.md](docs/packaging.md) for how the bundles are put together.
 
 ## Development
