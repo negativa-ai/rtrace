@@ -35,7 +35,7 @@ rtrace/
   bundle layout. The native tree is identical for both editions.
 - **`packaging/build-bundle.sh --prefix <dir> --edition light|heavy --python-url <url>`** —
   adds the bundled Python, installs the `rtrace` package for the chosen edition
-  (`.` vs `.[heavy]`), installs `sr-utils` and the `nucleus` bindings, and writes
+  (`.` vs `.[heavy]`), installs the `nucleus` bindings, and writes
   the launcher.
 
 We bundle our own Python (astral-sh/python-build-standalone) rather than reuse

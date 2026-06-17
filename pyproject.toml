@@ -9,14 +9,12 @@ description = "A high-accuracy library function call tracer."
 readme = "README.md"
 requires-python = ">=3.9"
 
-# Light edition (mode 1) runtime dependencies available from PyPI.
+# Light edition (light mode) runtime dependencies available from PyPI.
 #
-# Two dependencies are intentionally NOT listed here because they are not on PyPI
-# and are provided by the bundle build (see DISTRIBUTION.md):
-#   * srutils  -- the `sr-utils` git submodule, pip-installed from source.
-#   * nucleus  -- a native module built from the `nucleus` submodule.
-# The native tracer (DynamoRIO + librtrace.so) and FunSeeker (.NET) are likewise
-# bundled, not Python packages.
+# nucleus -- a native module built from the `nucleus` submodule -- is intentionally
+# NOT listed here: it is not on PyPI and is provided by the bundle build (see
+# DISTRIBUTION.md). The native tracer (DynamoRIO + librtrace.so) and FunSeeker
+# (.NET) are likewise bundled, not Python packages.
 dependencies = [
     "pyelftools==0.32",
     "pandas==2.3.0",

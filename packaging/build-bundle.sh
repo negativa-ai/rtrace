@@ -66,11 +66,7 @@ TARGET="."
 echo "==> pip install rtrace ($TARGET)"
 "$PY" -m pip install --no-warn-script-location "$REPO_ROOT/$TARGET"
 
-# --- 3. sr-utils (srutils) -- submodule, not on PyPI; both editions -----------
-echo "==> pip install sr-utils submodule"
-"$PY" -m pip install --no-warn-script-location "$REPO_ROOT/submodules/sr-utils"
-
-# --- 4. nucleus bindings (native) -- both editions ----------------------------
+# --- 3. nucleus bindings (native) -- both editions ----------------------------
 # Sources staged by build-native.sh into <prefix>/.nucleus-src; compile into the
 # bundle interpreter so it lands in the bundle's site-packages with a matching ABI.
 if [ -d "$PREFIX/.nucleus-src" ]; then
@@ -101,7 +97,7 @@ if [ -d "$PREFIX/.nucleus-src" ]; then
     | while read -r dep; do cp -aL "$dep" "$PREFIX/lib/"; done
 fi
 
-# --- 5. launcher --------------------------------------------------------------
+# --- 4. launcher --------------------------------------------------------------
 mkdir -p "$PREFIX/bin"
 cat > "$PREFIX/bin/rtrace" <<'LAUNCHER'
 #!/usr/bin/env bash

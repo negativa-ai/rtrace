@@ -1,14 +1,24 @@
-from srutils import shell_get_stdout_retcode
+import subprocess
 
 from . import paths
 from .utils import is_func_symbol
 
 
 def boundary_detection_funseeker(so_path):
-    detect_cmd = f"{paths.funseeker_bin()} {so_path}"
-    output, retcode = shell_get_stdout_retcode(detect_cmd)
-    if retcode != 0:
-        raise RuntimeError(f"FunSeeker failed with code {retcode} for {so_path}:\n{output}")
+    # Run FunSeeker without a shell (no injection/quoting hazards). FunSeeker
+    # prints its results to stdout and diagnostics to stderr; merge them so the
+    # parser and the error message see the same combined output as before.
+    result = subprocess.run(
+        [str(paths.funseeker_bin()), so_path],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        text=True,
+    )
+    output = result.stdout
+    if result.returncode != 0:
+        raise RuntimeError(
+            f"FunSeeker failed with code {result.returncode} for {so_path}:\n{output}"
+        )
     detected_entry_addrs = []
     for line in output.splitlines():
         if not line.startswith("FunctionEntry:"):

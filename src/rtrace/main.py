@@ -1,8 +1,7 @@
 import argparse
 import logging
+import subprocess
 import sys
-
-from srutils import shell_system
 
 from . import paths
 from .edition import MODE_NAMES, require_mode_supported
@@ -36,27 +35,50 @@ def main():
     require_mode_supported(mode)
 
     log_dir = args.logdir
-    cmd = " ".join(args.cmd)
 
     # -quiet: the bundle ships only the 64-bit release DynamoRIO libraries, and
     # drrun's install-completeness check warns about the absent lib32/debug
     # variants on every run otherwise.
-    trace_cmd = (
-        f"{paths.drrun()} -quiet -c {paths.librtrace_so()} "
-        f"--log_dir {log_dir} --mode {mode} -- {cmd}"
-    )
-    retcode = shell_system(trace_cmd)
-    logger.info("Trace command executed: %s", trace_cmd)
+    #
+    # --cache_dir / --python let the native client run boundary detection in rich
+    # mode (it runs `python -m rtrace.preprocess`) without any hardcoded paths.
+    # Built as an argument list and run without a shell, so command names and the
+    # traced program's arguments need no quoting/escaping.
+    trace_argv = [
+        str(paths.drrun()),
+        "-quiet",
+        "-c",
+        str(paths.librtrace_so()),
+        "--log_dir",
+        log_dir,
+        "--mode",
+        str(mode),
+        "--cache_dir",
+        str(paths.cache_dir().resolve()),
+        "--python",
+        sys.executable,
+        "--",
+        *args.cmd,
+    ]
+    retcode = subprocess.run(trace_argv).returncode
+    logger.info("Trace command executed: %s", " ".join(trace_argv))
 
-    post_process_cmd = (
-        f"{sys.executable} -m rtrace.postprocess "
-        f"--input {log_dir}/ --output {log_dir} --mode {args.mode}"
-    )
+    post_process_argv = [
+        sys.executable,
+        "-m",
+        "rtrace.postprocess",
+        "--input",
+        f"{log_dir}/",
+        "--output",
+        log_dir,
+        "--mode",
+        args.mode,
+    ]
     if args.so_name is not None:
-        post_process_cmd += f" --so_names {args.so_name}"
+        post_process_argv += ["--so_names", args.so_name]
     if args.calllog:
-        post_process_cmd += " --calllog"
-    shell_system(post_process_cmd)
+        post_process_argv += ["--calllog"]
+    subprocess.run(post_process_argv)
     sys.exit(retcode)
 
 
