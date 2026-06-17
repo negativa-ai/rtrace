@@ -28,7 +28,18 @@ rtrace/
 └── EDITION               "light" | "heavy"
 ```
 
-## Scripts
+## Build
+
+The top-level **`Makefile`** is the front-end to the build and is what CI uses:
+
+- `make` (or `make EDITION=heavy`) — build the edition bundle into `./staging/rtrace`.
+- `make install` — build, then install to `~/.local/share/rtrace` and symlink the
+  `rtrace` launcher into `~/.local/bin` (override `INSTALL_PREFIX` / `BINDIR`).
+- `make tarball` — build and package `rtrace-<edition>-linux-x64.tar.gz` (+ `.sha256`).
+- `make help` lists the targets and variables.
+
+The Makefile holds the pinned bundled-Python URL (single source of truth) and
+delegates the actual work to two scripts:
 
 - **`packaging/build-native.sh --prefix <dir>`** — builds the shared native
   artifacts (DynamoRIO, `librtrace.so`, capstone, nucleus, FunSeeker) into the
@@ -45,7 +56,7 @@ ABI and keeps the end-user install build-free. See the `build-bundle.sh` header.
 ## CI
 
 [`../.github/workflows/build-bundles.yml`](../.github/workflows/build-bundles.yml)
-runs the scripts in an `ubuntu:22.04` container across an
+runs `make tarball` in an `ubuntu:22.04` container across an
 `edition: [light, heavy]` matrix, on `workflow_dispatch` and on `v*` tags, and
 uploads the tarballs + `.sha256` as artifacts.
 
@@ -85,7 +96,7 @@ git push origin v0.1.0
 ## Notes / knobs
 
 - **No secrets required** — all submodules are public and cloned over https.
-- **Pinned interpreter** — `PYTHON_BUILD_STANDALONE_URL` in the workflow pins a
+- **Pinned interpreter** — the `PYTHON_URL` variable in the `Makefile` pins a
   `python-build-standalone` release (currently CPython 3.11). When bumping it,
   confirm the URL resolves and that `angr==9.2.102` installs on that minor
   version (3.11 is the safe choice for the heavy edition's wheels).
@@ -103,7 +114,17 @@ git push origin v0.1.0
 - FunSeeker output was verified byte-identical with and without
   `InvariantGlobalization=true` + `DebugType=None` on `/bin/ls` and libc.
 
-## Local build (if you have the submodules + toolchain)
+## Local build (if you have the toolchain)
+
+```bash
+make                 # build the light bundle into ./staging/rtrace
+make install         # ... and install to ~/.local/share/rtrace, symlink rtrace
+make EDITION=heavy tarball   # build + package the heavy tarball
+```
+
+`make` initializes the submodules on first use. To override where the bundle is
+assembled or installed, set `PREFIX` / `INSTALL_PREFIX` (see `make help`). The
+underlying scripts can still be invoked directly if you need finer control:
 
 ```bash
 git submodule update --init --recursive
